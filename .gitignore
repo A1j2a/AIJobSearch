@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build Output
+dist/
+build/
+
+# Environment & Secrets
+.env
+.env.local
+.env.production
+
+# Database & Logs
+data/*.db
+data/*.db-journal
+data/*.db-wal
+*.log
+logs/
+
+# System & IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.tmp
