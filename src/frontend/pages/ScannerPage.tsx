@@ -332,14 +332,6 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onScanCompleted }) => 
         </div>
       </div>
 
-      {/* Explanation Banner */}
-      <div className="card" style={{ marginBottom: '24px', backgroundColor: 'var(--bg-muted)' }}>
-        <h4 style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '8px' }}>ℹ️ How Job Scanning & Deduplication Works:</h4>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-          When you click <strong>"Start Real Job Scan"</strong>, the engine queries live public sources. Any job listing that is <strong>already saved in your SQLite database</strong> is automatically skipped to prevent duplicate job records. All saved jobs remain stored in your database and are viewable anytime under <strong>Dashboard</strong> or <strong>Jobs</strong>.
-        </p>
-      </div>
-
       {/* Supported Sources Disclosure */}
       <div className="card">
         <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px' }}>Supported Public Job Sources</h3>
