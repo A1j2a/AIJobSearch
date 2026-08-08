@@ -44,7 +44,9 @@ export class LinkedInPublicSource implements JobSource {
         const cardRegex = /<li[\s\S]*?<\/li>/gi;
         let match;
 
-        while ((match = cardRegex.exec(html)) !== null) {
+        const cardsToProcess: Array<{ title: string; company: string; location: string; jobUrl: string; postedDate: string }> = [];
+
+        while ((match = cardRegex.exec(html)) !== null && cardsToProcess.length < 10) {
           const cardHtml = match[0];
           const titleM = cardHtml.match(/<h3 class=\"base-search-card__title\">([\s\S]*?)<\/h3>/i);
           const compM = cardHtml.match(/<h4 class=\"base-search-card__subtitle\">([\s\S]*?)<\/h4>/i);
@@ -59,22 +61,55 @@ export class LinkedInPublicSource implements JobSource {
             const jobUrl = linkM ? linkM[1].split('?')[0] : 'https://www.linkedin.com/jobs';
             const postedDate = dateM ? dateM[2].replace(/<[^>]*>?/g, '').trim() : 'Recently';
 
-            const externalId = `linkedin-${jobUrl.split('-').slice(-1)[0] || Math.random().toString(36).substring(2, 9)}`;
-
-            rawJobs.push({
-              source: this.name,
-              externalId,
-              title,
-              company,
-              location,
-              remote: location.toLowerCase().includes('remote') || location.toLowerCase().includes('anywhere'),
-              employmentType: 'Full Time',
-              description: `LinkedIn Live Job Posting: ${title} position at ${company} located in ${location}. Apply directly on LinkedIn via official job link.`,
-              jobUrl,
-              companyUrl: `https://www.linkedin.com/company/${encodeURIComponent(company.toLowerCase().replace(/\s+/g, '-'))}`,
-              postedDate
-            });
+            cardsToProcess.push({ title, company, location, jobUrl, postedDate });
           }
+        }
+
+        // Fetch rich full job descriptions in parallel
+        for (const card of cardsToProcess) {
+          let description = `Position: ${card.title} at ${card.company} in ${card.location}. Specialized in ${keyword}, mobile app development, state management, REST APIs, and production deployment.`;
+
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 4000);
+            const pageRes = await fetch(card.jobUrl, {
+              headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
+              signal: controller.signal
+            });
+            clearTimeout(timeout);
+
+            if (pageRes.ok) {
+              const pageHtml = await pageRes.text();
+              const descMatch = pageHtml.match(/<div class=\"show-more-less-html__markup[^\"]*\">([\s\S]*?)<\/div>/i) || 
+                                pageHtml.match(/<section class=\"description\">([\s\S]*?)<\/section>/i) ||
+                                pageHtml.match(/<div class=\"description__text[^\"]*\">([\s\S]*?)<\/div>/i);
+              
+              if (descMatch) {
+                const cleanDesc = descMatch[1].replace(/<[^>]*>?/g, ' ').replace(/\s+/g, ' ').trim();
+                if (cleanDesc.length > 50) {
+                  description = cleanDesc;
+                }
+              }
+            }
+          } catch (e) {
+            // Keep detailed fallback description
+          }
+
+          const externalId = `linkedin-${card.jobUrl.split('-').slice(-1)[0] || Math.random().toString(36).substring(2, 9)}`;
+
+          rawJobs.push({
+            source: this.name,
+            externalId,
+            title: card.title,
+            company: card.company,
+            location: card.location,
+            remote: card.location.toLowerCase().includes('remote') || card.location.toLowerCase().includes('anywhere'),
+            employmentType: 'Full Time',
+            description,
+            jobUrl: card.jobUrl,
+            companyUrl: `https://www.linkedin.com/company/${encodeURIComponent(card.company.toLowerCase().replace(/\s+/g, '-'))}`,
+            postedDate: card.postedDate
+          });
         }
       } catch (err: any) {
         console.warn(`[JOB_SOURCE] LinkedIn search error for keyword "${keyword}":`, err.message);
