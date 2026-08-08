@@ -422,6 +422,11 @@ class ScannerService {
           }
         }
 
+        if (!jobId || isNaN(jobId) || jobId <= 0) {
+          console.warn(`[SCANNER] Invalid jobId (${jobId}) for ${raw.title}. Skipping analysis.`);
+          continue;
+        }
+
         this.activeStatus.currentStep = `Evaluating AI match score for ${raw.title}...`;
         const analysis = await aiProvider.analyzeJob(raw, profile, searchConfig, resumeText);
 
