@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Job } from '../../shared/types';
-import { fetchJobs } from '../api';
-import { Briefcase, ExternalLink, Star, Search, Filter, Calendar, MapPin, Globe, Building, Clock } from 'lucide-react';
+import { fetchJobs, updateApplicationStatusApi } from '../api';
+import { Briefcase, ExternalLink, Star, Search, Filter, Calendar, MapPin, Globe, Building, Clock, Bookmark } from 'lucide-react';
 
 export const JobsPage: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -220,6 +220,22 @@ export const JobsPage: React.FC = () => {
                         <span>{job.match_score}%</span>
                       </div>
                     )}
+                    <button
+                      className={`btn btn-sm ${job.application_status ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ padding: '3px 8px', fontSize: '0.75rem', gap: '3px' }}
+                      onClick={async () => {
+                        try {
+                          await updateApplicationStatusApi(job.id, 'Saved');
+                          loadJobs();
+                        } catch (err: any) {
+                          alert('Failed to save job: ' + err.message);
+                        }
+                      }}
+                    >
+                      <Bookmark size={12} />
+                      <span>{job.application_status || 'Save'}</span>
+                    </button>
+
                     <a href={job.job_url} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm" style={{ padding: '3px 8px', fontSize: '0.75rem' }}>
                       <ExternalLink size={12} /> Open Link
                     </a>

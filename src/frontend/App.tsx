@@ -8,6 +8,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { JobsPage } from './pages/JobsPage';
 import { JobDetailPage } from './pages/JobDetailPage';
 import { ScannerPage } from './pages/ScannerPage';
+import { ApplicationsPage } from './pages/ApplicationsPage';
 import { LogsPage } from './pages/LogsPage';
 import { UserProfile } from '../shared/types';
 import { fetchProfile, testOllama } from './api';
@@ -91,20 +92,11 @@ export const App: React.FC = () => {
             )}
 
             {activePage === 'saved' && (
-              <JobsPage />
+              <ApplicationsPage onNavigateToJobDetail={handleNavigateToJobDetail} />
             )}
 
             {activePage === 'applications' && (
-              <div className="page-container">
-                <div className="page-title-section">
-                  <h1 className="page-title">Application Tracker Board</h1>
-                </div>
-                <div className="card">
-                  <p style={{ color: 'var(--text-secondary)' }}>
-                    Application tracking board manages job application statuses across Saved, Applied, Recruiter Contacted, Interview, Technical Round, Offer, and Rejected. (Phase 6)
-                  </p>
-                </div>
-              </div>
+              <ApplicationsPage onNavigateToJobDetail={handleNavigateToJobDetail} />
             )}
 
             {activePage === 'scanner' && (

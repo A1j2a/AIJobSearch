@@ -241,3 +241,68 @@ export function clearLogs(req: Request, res: Response) {
     return res.status(500).json({ error: error.message });
   }
 }
+
+export function updateApplicationStatus(req: Request, res: Response) {
+  try {
+    const { jobId, status, notes, resume_version } = req.body;
+    if (!jobId) {
+      return res.status(400).json({ error: 'Job ID is required' });
+    }
+
+    const newStatus = status || 'Saved';
+
+    db.prepare(`
+      INSERT INTO applications (job_id, status, applied_at, notes, resume_version, updated_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(job_id) DO UPDATE SET
+        status = excluded.status,
+        notes = excluded.notes,
+        resume_version = excluded.resume_version,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(jobId, newStatus, notes || null, resume_version || null);
+
+    db.prepare(`
+      INSERT INTO logs (component, event, status, message)
+      VALUES (?, ?, ?, ?)
+    `).run('APPLICATIONS', 'STATUS_UPDATE', 'INFO', `Job ID ${jobId} application status set to ${newStatus}.`);
+
+    return res.json({ success: true, jobId, status: newStatus, message: `Job saved as ${newStatus}!` });
+  } catch (error: any) {
+    console.error('Error updating application status:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+export function getApplications(req: Request, res: Response) {
+  try {
+    const rows = db.prepare(`
+      SELECT 
+        j.*,
+        ja.match_score,
+        ja.recommendation,
+        ja.matching_skills,
+        ja.missing_skills,
+        ja.ai_summary,
+        app.status as application_status,
+        app.notes as application_notes,
+        app.applied_at
+      FROM applications app
+      JOIN jobs j ON app.job_id = j.id
+      LEFT JOIN job_analysis ja ON j.id = ja.job_id
+      ORDER BY app.updated_at DESC
+    `).all() as any[];
+
+    const applications = rows.map(r => ({
+      ...r,
+      remote: Boolean(r.remote),
+      is_demo: Boolean(r.is_demo),
+      matching_skills: r.matching_skills ? JSON.parse(r.matching_skills) : [],
+      missing_skills: r.missing_skills ? JSON.parse(r.missing_skills) : []
+    }));
+
+    return res.json({ applications, count: applications.length });
+  } catch (error: any) {
+    console.error('Error fetching applications:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}

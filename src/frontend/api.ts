@@ -158,3 +158,19 @@ export async function clearLogs(): Promise<{ success: boolean; message: string }
   if (!res.ok) throw new Error('Failed to clear logs');
   return res.json();
 }
+
+export async function updateApplicationStatusApi(jobId: number, status: string, notes?: string): Promise<{ success: boolean; message: string }> {
+  const res = await fetch('/api/applications/update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jobId, status, notes })
+  });
+  if (!res.ok) throw new Error('Failed to update application status');
+  return res.json();
+}
+
+export async function fetchApplicationsApi(): Promise<{ applications: Job[]; count: number }> {
+  const res = await fetch('/api/applications');
+  if (!res.ok) throw new Error('Failed to fetch applications');
+  return res.json();
+}

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Briefcase, CheckCircle2, Star, Send, UserCheck, Search, RefreshCw, Filter, ArrowRight, Play, MapPin, Globe, Building, Target, FileText, Check, Calendar, Clock, Sparkles, ChevronRight, ShieldCheck } from 'lucide-react';
+import { Briefcase, CheckCircle2, Star, Send, UserCheck, Search, RefreshCw, Filter, ArrowRight, Play, MapPin, Globe, Building, Target, FileText, Check, Calendar, Clock, Sparkles, ChevronRight, ShieldCheck, Bookmark } from 'lucide-react';
 import { StatCard } from '../components/StatCard';
 import { DashboardStats, Job, UserProfile, SearchConfig } from '../../shared/types';
-import { fetchDashboardStats, fetchJobs, fetchProfile, fetchSearchConfig } from '../api';
+import { fetchDashboardStats, fetchJobs, fetchProfile, fetchSearchConfig, updateApplicationStatusApi } from '../api';
 
 interface DashboardProps {
   onNavigateToScanner: () => void;
@@ -434,6 +434,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToScanner, onNav
                       {job.recommendation}
                     </span>
                   )}
+
+                  <button
+                    className={`btn btn-sm ${job.application_status ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ padding: '3px 8px', fontSize: '0.73rem', gap: '3px' }}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        await updateApplicationStatusApi(job.id, job.application_status ? 'Saved' : 'Saved');
+                        loadDashboardData();
+                      } catch (err: any) {
+                        alert('Failed to save job: ' + err.message);
+                      }
+                    }}
+                    title="Save job to Application Tracker Board"
+                  >
+                    <Bookmark size={12} />
+                    <span>{job.application_status || 'Save'}</span>
+                  </button>
 
                   <button className="btn btn-secondary btn-sm" style={{ padding: '3px 6px', fontSize: '0.73rem', gap: '2px' }}>
                     <span>Details</span>
