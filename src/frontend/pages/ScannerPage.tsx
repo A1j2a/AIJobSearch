@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Play, RefreshCw, CheckCircle2, Briefcase, Star, Search, ShieldCheck, UserCheck, Sparkles, Square } from 'lucide-react';
-import { ScanStatusResponse, startRealScan, stopRealScan, fetchScanStatus, fetchProfile, fetchSearchConfig } from '../api';
-import { UserProfile, SearchConfig } from '../../shared/types';
+import { Play, RefreshCw, CheckCircle2, Briefcase, Star, Search, ShieldCheck, UserCheck, Sparkles, Square, Cpu } from 'lucide-react';
+import { ScanStatusResponse, startRealScan, stopRealScan, fetchScanStatus, fetchProfile, fetchSearchConfig, fetchSettings, saveSettings, testOllama } from '../api';
+import { UserProfile, SearchConfig, AppSettings } from '../../shared/types';
 
 interface ScannerPageProps {
   onScanCompleted?: () => void;
@@ -10,6 +10,11 @@ interface ScannerPageProps {
 export const ScannerPage: React.FC<ScannerPageProps> = ({ onScanCompleted }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [searchConfig, setSearchConfig] = useState<SearchConfig | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const [availableModels, setAvailableModels] = useState<string[]>(['qwen2.5:1.5b']);
+  const [selectedModel, setSelectedModel] = useState<string>('qwen2.5:1.5b');
+  const [modelToast, setModelToast] = useState<string | null>(null);
+
   const [scanStatus, setScanStatus] = useState<ScanStatusResponse & { totalDbJobs?: number; totalDbAnalyzed?: number }>({
     status: 'IDLE',
     currentStep: 'Ready to start scanning real public job boards',
@@ -25,14 +30,40 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onScanCompleted }) => 
 
   const loadPageData = async () => {
     try {
-      const [p, c] = await Promise.all([
+      const [p, c, sData] = await Promise.all([
         fetchProfile().catch(() => null),
-        fetchSearchConfig().catch(() => null)
+        fetchSearchConfig().catch(() => null),
+        fetchSettings().catch(() => null)
       ]);
       setProfile(p);
       setSearchConfig(c);
+      if (sData && sData.settings) {
+        setAppSettings(sData.settings);
+        setSelectedModel(sData.settings.ollama_model || 'qwen2.5:1.5b');
+        try {
+          const testRes = await testOllama(sData.settings.ollama_url);
+          if (testRes.models && testRes.models.length > 0) {
+            setAvailableModels(testRes.models);
+          }
+        } catch (e) {}
+      }
     } catch (e) {
       console.warn('Error loading scanner data:', e);
+    }
+  };
+
+  const handleModelChange = async (newModel: string) => {
+    setSelectedModel(newModel);
+    if (appSettings) {
+      const updated = { ...appSettings, ollama_model: newModel };
+      setAppSettings(updated);
+      try {
+        await saveSettings(updated, []);
+        setModelToast(`AI Engine model switched to: ${newModel}`);
+        setTimeout(() => setModelToast(null), 3000);
+      } catch (e: any) {
+        console.warn('Model switch error:', e);
+      }
     }
   };
 
@@ -97,7 +128,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onScanCompleted }) => 
           <p className="page-subtitle">Collect live jobs from supported public sources, normalize, deduplicate, and score with local Ollama AI</p>
         </div>
         {scanning || scanStatus.status === 'RUNNING' ? (
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <button
               className="btn btn-secondary"
               disabled
@@ -117,16 +148,67 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onScanCompleted }) => 
             </button>
           </div>
         ) : (
-          <button
-            className="btn btn-primary"
-            onClick={handleUnifiedSmartScan}
-            style={{ padding: '10px 20px', fontSize: '0.95rem', fontWeight: 600 }}
-          >
-            <Sparkles size={18} />
-            <span>Start Smart Job Scan & AI Analysis</span>
-          </button>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: 'var(--bg-muted)',
+              padding: '6px 12px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-color)'
+            }}>
+              <Cpu size={16} color="var(--accent-primary)" />
+              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>AI Engine:</span>
+              <select
+                value={selectedModel}
+                onChange={(e) => handleModelChange(e.target.value)}
+                style={{
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                {availableModels.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              className="btn btn-primary"
+              onClick={handleUnifiedSmartScan}
+              style={{ padding: '10px 20px', fontSize: '0.95rem', fontWeight: 600 }}
+            >
+              <Sparkles size={18} />
+              <span>Start Smart Job Scan & AI Analysis</span>
+            </button>
+          </div>
         )}
       </div>
+
+      {modelToast && (
+        <div style={{
+          backgroundColor: 'var(--status-success-bg)',
+          color: 'var(--status-success)',
+          padding: '10px 16px',
+          borderRadius: 'var(--radius-md)',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontSize: '0.875rem',
+          fontWeight: 600
+        }}>
+          <CheckCircle2 size={18} />
+          <span>{modelToast}</span>
+        </div>
+      )}
 
       {profile && (
         <div className="card" style={{ marginBottom: '20px', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)' }}>
@@ -136,9 +218,15 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onScanCompleted }) => 
               <span style={{ fontWeight: 700, fontSize: '0.92rem' }}>Active Candidate & Search Configuration Guard</span>
               <span className="badge badge-success">0 Wasted AI Tokens</span>
             </div>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Candidate: <strong>{profile.name}</strong> ({profile.primary_role})
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                <Cpu size={14} color="var(--accent-primary)" />
+                <span>Selected AI Model: <strong style={{ color: 'var(--accent-primary)' }}>{selectedModel}</strong></span>
+              </div>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Candidate: <strong>{profile.name}</strong> ({profile.primary_role})
+              </span>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
