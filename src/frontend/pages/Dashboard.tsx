@@ -225,7 +225,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToScanner, onNav
         <StatCard label="AI Analyzed" value={stats.jobs_analyzed} icon={<CheckCircle2 size={16} />} />
         <StatCard label="Strong (≥80%)" value={stats.strong_matches} icon={<Star size={16} />} />
         <StatCard label="Applications" value={stats.applications} icon={<Send size={16} />} />
-        <StatCard label="Interviews" value={stats.interviews} icon={<UserCheck size={16} />} />
       </div>
 
       {/* Fixed Single-Row Filter Container */}
