@@ -417,8 +417,13 @@ class ScannerService {
             addedCount++;
             jobId = Number(res.lastInsertRowid);
           } else {
-            duplicateCount++;
-            continue;
+            const reFetch = db.prepare("SELECT id FROM jobs WHERE external_id = ? OR (job_url = ? AND job_url != '')").get(raw.externalId, raw.jobUrl || '') as any;
+            if (reFetch) {
+              jobId = Number(reFetch.id);
+            } else {
+              duplicateCount++;
+              continue;
+            }
           }
         }
 
@@ -437,9 +442,10 @@ class ScannerService {
         this.activeStatus.currentStep = `Evaluating AI match score for ${raw.title}...`;
         const analysis = await aiProvider.analyzeJob(raw, profile, searchConfig, resumeText);
 
-        insertAnalysis.run(
-          jobId,
-          analysis.matchScore,
+        try {
+          insertAnalysis.run(
+            jobId,
+            analysis.matchScore,
             analysis.scoreBreakdown?.roleScore || 0,
             analysis.scoreBreakdown?.skillsScore || 0,
             analysis.scoreBreakdown?.experienceScore || 0,
@@ -461,7 +467,10 @@ class ScannerService {
             strongMatchCount++;
             this.activeStatus.strongMatches = strongMatchCount;
           }
+        } catch (dbErr: any) {
+          console.warn(`[SCANNER] Analysis insert error for jobId ${jobId}:`, dbErr.message);
         }
+      }
 
       this.activeStatus.status = 'COMPLETED';
       if (addedCount === 0) {
