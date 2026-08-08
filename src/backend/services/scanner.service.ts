@@ -427,6 +427,13 @@ class ScannerService {
           continue;
         }
 
+        // Verify jobId actually exists in jobs table to strictly prevent Foreign Key errors
+        const jobCheck = db.prepare("SELECT id FROM jobs WHERE id = ?").get(jobId) as any;
+        if (!jobCheck) {
+          console.warn(`[SCANNER] Job ID ${jobId} not found in jobs table for ${raw.title}. Skipping analysis.`);
+          continue;
+        }
+
         this.activeStatus.currentStep = `Evaluating AI match score for ${raw.title}...`;
         const analysis = await aiProvider.analyzeJob(raw, profile, searchConfig, resumeText);
 
