@@ -125,25 +125,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToScanner, onNav
       }
     }
 
-    // 7. Strict Candidate Role & Skill Alignment Filter
-    let matchesCandidateRole = true;
-    const primaryRoleLower = (profile?.primary_role || '').toLowerCase();
-    const isMobileCandidate = primaryRoleLower.includes('react native') || primaryRoleLower.includes('mobile') || targetRolesLower.some(r => r.includes('react native') || r.includes('mobile'));
-    const isBackendCandidate = primaryRoleLower.includes('backend') || targetRolesLower.some(r => r.includes('backend'));
+    // 7. Candidate Role & Skill Alignment Guard
+    let matchesConfiguredResume = true;
+    if (resumeMatchMode === 'matched') {
+      const primaryRoleLower = (profile?.primary_role || '').toLowerCase();
+      const isMobileCandidate = primaryRoleLower.includes('react native') || primaryRoleLower.includes('mobile') || targetRolesLower.some(r => r.includes('react native') || r.includes('mobile'));
+      const isBackendCandidate = primaryRoleLower.includes('backend') || targetRolesLower.some(r => r.includes('backend'));
 
-    if (isMobileCandidate) {
-      const isMobileTitle = titleLower.includes('react native') || titleLower.includes('mobile') || titleLower.includes('ios') || titleLower.includes('android') || titleLower.includes('flutter') || titleLower.includes('app developer') || (titleLower.includes('react') && titleLower.includes('developer'));
-      const isIrrelevant = titleLower.includes('golang') || titleLower.includes('rust') || titleLower.includes('c++') || titleLower.includes('finance automation') || titleLower.includes('director') || titleLower.includes('graph engine') || titleLower.includes('data layer') || titleLower.includes('legal automation');
-      matchesCandidateRole = isMobileTitle && !isIrrelevant;
-    } else if (isBackendCandidate) {
-      const isBackendTitle = titleLower.includes('backend') || titleLower.includes('node') || titleLower.includes('python') || titleLower.includes('go') || titleLower.includes('microservices') || titleLower.includes('api') || titleLower.includes('server');
-      const isIrrelevant = titleLower.includes('react native') || titleLower.includes('flutter') || titleLower.includes('ios') || titleLower.includes('android') || titleLower.includes('design') || titleLower.includes('copywriter');
-      matchesCandidateRole = isBackendTitle && !isIrrelevant;
-    } else {
-      matchesCandidateRole = targetRolesLower.some(r => titleLower.includes(r));
+      if (isMobileCandidate) {
+        const isMobileTitle = titleLower.includes('react native') || titleLower.includes('mobile') || titleLower.includes('ios') || titleLower.includes('android') || titleLower.includes('flutter') || titleLower.includes('app developer') || (titleLower.includes('react') && titleLower.includes('developer'));
+        const isIrrelevant = titleLower.includes('golang') || titleLower.includes('rust') || titleLower.includes('c++') || titleLower.includes('finance automation') || titleLower.includes('director') || titleLower.includes('graph engine') || titleLower.includes('data layer') || titleLower.includes('legal automation');
+        matchesConfiguredResume = isMobileTitle && !isIrrelevant;
+      } else if (isBackendCandidate) {
+        const isBackendTitle = titleLower.includes('backend') || titleLower.includes('node') || titleLower.includes('python') || titleLower.includes('go') || titleLower.includes('microservices') || titleLower.includes('api') || titleLower.includes('server') || titleLower.includes('software engineer');
+        const isIrrelevant = titleLower.includes('react native') || titleLower.includes('flutter') || titleLower.includes('ios') || titleLower.includes('android') || titleLower.includes('design') || titleLower.includes('copywriter');
+        matchesConfiguredResume = isBackendTitle && !isIrrelevant;
+      } else {
+        matchesConfiguredResume = targetRolesLower.some(r => titleLower.includes(r));
+      }
     }
 
-    return matchesSearch && matchesSource && matchesScore && matchesWorkplace && matchesLocation && matchesPostedDuration && matchesCandidateRole;
+    return matchesSearch && matchesSource && matchesScore && matchesWorkplace && matchesLocation && matchesPostedDuration && matchesConfiguredResume;
   });
 
   const preferredLocations = profile?.preferred_locations || ['Ahmedabad', 'Gandhinagar', 'Remote - India'];
