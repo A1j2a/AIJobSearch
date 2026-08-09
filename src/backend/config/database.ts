@@ -32,12 +32,17 @@ function getTursoClient(): Client {
 
 function getNativeDb(): any {
   if (!nativeDb) {
-    const Database = require('libsql');
-    const dataDir = path.resolve(process.cwd(), 'data');
-    try { if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true }); } catch {}
-    const dbPath = path.resolve(dataDir, 'jobsearch.db');
-    nativeDb = new Database(dbPath);
-    try { nativeDb.pragma('journal_mode = WAL'); } catch {}
+    try {
+      const dynamicRequire = eval('require');
+      const Database = dynamicRequire('libsql');
+      const dataDir = path.resolve(process.cwd(), 'data');
+      if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+      const dbPath = path.resolve(dataDir, 'jobsearch.db');
+      nativeDb = new Database(dbPath);
+      try { nativeDb.pragma('journal_mode = WAL'); } catch {}
+    } catch (e: any) {
+      console.warn('[DB] Native libsql not available, falling back to Turso HTTP client:', e.message);
+    }
   }
   return nativeDb;
 }
@@ -45,7 +50,7 @@ function getNativeDb(): any {
 // ─── Async Database API (Primary interface for Vercel + Local) ───────────────
 export const dbAsync = {
   get: async (sql: string, args: any[] = []): Promise<any> => {
-    if (isVercel) {
+    if (isVercel || !getNativeDb()) {
       const client = getTursoClient();
       const res = await client.execute({ sql, args });
       return res.rows[0] ?? null;
@@ -56,7 +61,7 @@ export const dbAsync = {
   },
 
   all: async (sql: string, args: any[] = []): Promise<any[]> => {
-    if (isVercel) {
+    if (isVercel || !getNativeDb()) {
       const client = getTursoClient();
       const res = await client.execute({ sql, args });
       return res.rows as any[];
@@ -67,7 +72,7 @@ export const dbAsync = {
   },
 
   run: async (sql: string, args: any[] = []): Promise<void> => {
-    if (isVercel) {
+    if (isVercel || !getNativeDb()) {
       const client = getTursoClient();
       await client.execute({ sql, args });
     } else {
@@ -80,13 +85,13 @@ export const dbAsync = {
 // ─── Synchronous Database API (For legacy service calls) ──────────────────────
 export const db = {
   prepare: (sql: string) => {
-    if (!isVercel) {
-      return getNativeDb().prepare(sql);
+    const native = !isVercel ? getNativeDb() : null;
+    if (native) {
+      return native.prepare(sql);
     }
     // Vercel Fallback: proxy sync calls to async Turso via background execution
     return {
       get: (...args: any[]): any => {
-        // Fire async call in background for Turso
         getTursoClient().execute({ sql, args }).catch(() => {});
         return null;
       },
@@ -102,8 +107,9 @@ export const db = {
   },
 
   exec: (sql: string): void => {
-    if (!isVercel) {
-      getNativeDb().exec(sql);
+    const native = !isVercel ? getNativeDb() : null;
+    if (native) {
+      native.exec(sql);
     } else {
       getTursoClient().execute(sql).catch(() => {});
     }
@@ -204,14 +210,51 @@ export async function initDatabase(): Promise<void> {
       `INSERT INTO profile (name, primary_role, experience_years, experience_text, primary_location, preferred_locations, preferred_roles, core_skills)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        'Candidate Profile', 'Software Developer', 3.0,
-        '3+ years professional experience',
-        'Remote, India',
-        JSON.stringify(['Remote', 'India', 'Worldwide']),
-        JSON.stringify(['Software Engineer', 'Full Stack Developer', 'Frontend Developer', 'Backend Engineer']),
-        JSON.stringify(['React', 'Node.js', 'TypeScript', 'JavaScript', 'REST API', 'SQL'])
+        'Neel Patel', 'Senior React Native & Mobile Systems Engineer', 4.5,
+        '4.5+ years professional experience',
+        'Ahmedabad, India',
+        JSON.stringify(['Ahmedabad', 'Remote', 'India', 'Worldwide']),
+        JSON.stringify(['React Native Developer', 'Senior React Native Developer', 'Mobile Engineer', 'Frontend Developer']),
+        JSON.stringify(['React Native', 'React.js', 'TypeScript', 'JavaScript', 'Redux', 'REST API', 'Node.js', 'iOS', 'Android'])
       ]
     );
+  }
+
+  // Seed Resume Version
+  const resumeCount = await dbAsync.get('SELECT COUNT(*) as count FROM resume_versions');
+  if (!resumeCount || resumeCount.count === 0) {
+    const neelText = `Neel Patel
+Senior React Native & Mobile Systems Engineer
+Ahmedabad, Gujarat, India | neel.patel@example.com | +91 9876543210
+
+PROFESSIONAL SUMMARY
+Results-driven Senior React Native & Mobile Systems Engineer with 4.5+ years of experience architecting, building, and deploying cross-platform mobile applications for iOS and Android. Specialized in React Native, TypeScript, JavaScript, Redux Toolkit, REST APIs, Firebase, and native iOS/Android modules.
+
+CORE TECHNICAL SKILLS
+• Frontend & Mobile: React Native, React.js, TypeScript, JavaScript (ES6+), Redux, Zustand, Expo
+• Backend & Cloud: Node.js, Express, REST APIs, Firebase, FCM Push Notifications, GraphQL
+• Mobile Native: Swift, Objective-C, Java, Kotlin, Xcode, Android Studio
+• Tools & Methodologies: Git, GitHub, CI/CD, App Store Connect, Google Play Console
+
+WORK EXPERIENCE
+Senior Mobile Engineer | TechCorp Solutions (2022 - Present)
+• Built high-performance cross-platform mobile apps using React Native & TypeScript used by 100k+ active users.
+• Integrated payment gateways (Stripe, Razorpay) and FCM push notifications.
+• Optimized app load times by 35% through bundle optimization and native memory management.
+
+React Native Developer | Appify Software (2019 - 2022)
+• Developed mobile frontend features, REST API integrations, and offline state management with Redux.
+• Published 5+ production mobile applications on Google Play Store and Apple App Store.`;
+
+    await dbAsync.run(
+      `INSERT INTO resume_versions (name, version, resume_text, file_path, is_active) VALUES (?, ?, ?, ?, 1)`,
+      ['Uploaded: Neel Patel (2).pdf', 'v1.0', neelText, 'Neel Patel (2).pdf']
+    );
+
+    const rRow = await dbAsync.get('SELECT id FROM resume_versions ORDER BY id DESC LIMIT 1');
+    if (rRow) {
+      await dbAsync.run(`UPDATE profile SET active_resume_id = ? WHERE id = 1`, [rRow.id]);
+    }
   }
 
   // Seed Search Config
