@@ -1,23 +1,65 @@
-import express from 'express';
+import 'dotenv/config';
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import { initDatabase } from '../src/backend/config/database';
+import apiRouter from '../src/backend/routes/api';
 
 const app = express();
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Vercel Serverless Function is working!' });
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+
+// Lazy Database Initialization
+let dbReady = false;
+let dbInitPromise: Promise<void> | null = null;
+
+async function ensureDbReady(): Promise<void> {
+  if (dbReady) return;
+  if (!dbInitPromise) {
+    dbInitPromise = initDatabase()
+      .then(() => {
+        dbReady = true;
+        console.log('[API] DB init successful');
+      })
+      .catch((err) => {
+        console.error('[API] DB init failed:', err);
+        dbInitPromise = null;
+        throw err;
+      });
+  }
+  await dbInitPromise;
+}
+
+// Middleware: ensure DB is ready before routing
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+  if (req.path === '/api/health') return next();
+  try {
+    await ensureDbReady();
+    next();
+  } catch (err: any) {
+    return res.status(503).json({
+      error: 'Database connection failed',
+      details: err.message || String(err)
+    });
+  }
 });
 
-app.get('/api/test-db', async (req, res) => {
-  try {
-    const { createClient } = await import('@libsql/client');
-    const client = createClient({
-      url: 'https://jobsearchwithai-ajpatidar.aws-ap-south-1.turso.io',
-      authToken: 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODYyNzM5NjQsImlkIjoiMDE5ZmU2MzktODEwMS03ZGMwLTky0QtODU2NDg0ODk0NTFiIiwia2lkIjoiQUt2ZFl6V1JyN0JvWk1rT3FsV1FhVGZMaVMtR1V6M25tN1hqemVRYkhmTSIsInJpZCI6IjM1YzdjYjgzLWRjNGYtNDcyNS1hYjhkLTIwYWE5NjhhMjcyOSJ9.t01F47t7FziCu8GhBzwd5IPgrmK1dcMr5CK-2GdR2TnlBN3vq1ei_8d2SQRvlYyLqt6yGS-0lRJCgkv4gyOYAg'
-    });
-    const result = await client.execute('SELECT 1 as test');
-    res.json({ success: true, rows: result.rows });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message, stack: err.stack });
-  }
+app.get('/api/health', (req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    dbReady,
+    isVercel: Boolean(process.env.VERCEL || process.env.USE_TURSO),
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Mount API Routes
+app.use('/api', apiRouter);
+
+// Global Error Handler
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error('[API ERROR]', err);
+  res.status(500).json({ error: err.message || 'Internal Server Error', details: String(err) });
 });
 
 export default app;
