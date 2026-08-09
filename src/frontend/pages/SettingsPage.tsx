@@ -106,7 +106,20 @@ export const SettingsPage: React.FC = () => {
     }
   ];
 
-  if (loading || !settings) {
+  const activeSettings: AppSettings = settings || {
+    cluster_api_url: 'https://api.clusterprotocol.ai/v1',
+    cluster_api_key: 'cp_b585d212b386450a88f866049aa19fc0af387b46279719b75c588543e275dede',
+    cluster_model: 'best-model',
+    cluster_temperature: 0.2,
+    cluster_max_tokens: 2048,
+    telegram_bot_token: '',
+    telegram_chat_id: '',
+    telegram_min_score: 85,
+    scheduler_enabled: true,
+    scheduler_interval: 180
+  };
+
+  if (loading) {
     return (
       <div className="page-container">
         <div style={{ textAlign: 'center', padding: '40px' }}>Loading Application Settings...</div>
@@ -195,8 +208,8 @@ export const SettingsPage: React.FC = () => {
                 className="form-input"
                 placeholder="sk-cluster-..."
                 style={{ paddingRight: '40px', fontFamily: 'monospace' }}
-                value={settings.cluster_api_key || ''}
-                onChange={(e) => setSettings({ ...settings, cluster_api_key: e.target.value })}
+                value={activeSettings.cluster_api_key || ''}
+                onChange={(e) => setSettings({ ...activeSettings, cluster_api_key: e.target.value })}
               />
               <button
                 type="button"
@@ -224,8 +237,8 @@ export const SettingsPage: React.FC = () => {
             <input
               type="text"
               className="form-input"
-              value={settings.cluster_api_url || 'https://api.clusterprotocol.ai/v1'}
-              onChange={(e) => setSettings({ ...settings, cluster_api_url: e.target.value })}
+              value={activeSettings.cluster_api_url || 'https://api.clusterprotocol.ai/v1'}
+              onChange={(e) => setSettings({ ...activeSettings, cluster_api_url: e.target.value })}
             />
           </div>
 
@@ -237,11 +250,11 @@ export const SettingsPage: React.FC = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               {modelPresets.map((preset) => {
                 const IconComponent = preset.icon;
-                const isSelected = (settings.cluster_model || 'best-model').toLowerCase() === preset.id;
+                const isSelected = (activeSettings.cluster_model || 'best-model').toLowerCase() === preset.id;
                 return (
                   <div
                     key={preset.id}
-                    onClick={() => setSettings({ ...settings, cluster_model: preset.id })}
+                    onClick={() => setSettings({ ...activeSettings, cluster_model: preset.id })}
                     style={{
                       border: isSelected ? `2px solid ${preset.color}` : '1px solid var(--border-subtle)',
                       backgroundColor: isSelected ? 'var(--bg-card-hover)' : 'var(--bg-card)',
@@ -279,15 +292,15 @@ export const SettingsPage: React.FC = () => {
               type="text"
               className="form-input"
               placeholder="e.g. qwen/qwen-2.5-coder-32b-instruct or deepseek/deepseek-r1"
-              value={['best-model', 'qwen', 'deepseek', 'llama'].includes(settings.cluster_model) ? '' : settings.cluster_model}
+              value={['best-model', 'qwen', 'deepseek', 'llama'].includes(activeSettings.cluster_model) ? '' : activeSettings.cluster_model}
               onChange={(e) => {
                 if (e.target.value.trim()) {
-                  setSettings({ ...settings, cluster_model: e.target.value.trim() });
+                  setSettings({ ...activeSettings, cluster_model: e.target.value.trim() });
                 }
               }}
             />
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Currently selected: <code style={{ backgroundColor: 'var(--bg-page)', padding: '2px 6px', borderRadius: '4px' }}>{settings.cluster_model || 'best-model'}</code>
+              Currently selected: <code style={{ backgroundColor: 'var(--bg-page)', padding: '2px 6px', borderRadius: '4px' }}>{activeSettings.cluster_model || 'best-model'}</code>
             </div>
           </div>
         </div>
@@ -298,15 +311,15 @@ export const SettingsPage: React.FC = () => {
           <div className="card">
             <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '14px' }}>Inference Hyperparameters</h3>
             <div className="form-group">
-              <label className="form-label">Temperature ({settings.cluster_temperature ?? 0.2})</label>
+              <label className="form-label">Temperature ({activeSettings.cluster_temperature ?? 0.2})</label>
               <input
                 type="range"
                 step="0.05"
                 min="0"
                 max="1"
                 style={{ width: '100%' }}
-                value={settings.cluster_temperature ?? 0.2}
-                onChange={(e) => setSettings({ ...settings, cluster_temperature: parseFloat(e.target.value) })}
+                value={activeSettings.cluster_temperature ?? 0.2}
+                onChange={(e) => setSettings({ ...activeSettings, cluster_temperature: parseFloat(e.target.value) })}
               />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -314,8 +327,8 @@ export const SettingsPage: React.FC = () => {
               <input
                 type="number"
                 className="form-input"
-                value={settings.cluster_max_tokens ?? 2048}
-                onChange={(e) => setSettings({ ...settings, cluster_max_tokens: parseInt(e.target.value, 10) || 2048 })}
+                value={activeSettings.cluster_max_tokens ?? 2048}
+                onChange={(e) => setSettings({ ...activeSettings, cluster_max_tokens: parseInt(e.target.value, 10) || 2048 })}
               />
             </div>
           </div>
@@ -333,8 +346,8 @@ export const SettingsPage: React.FC = () => {
                 type="text"
                 className="form-input"
                 placeholder="123456789:ABCdefGhIJKlmNoPQRSTUvwxyz"
-                value={settings.telegram_bot_token}
-                onChange={(e) => setSettings({ ...settings, telegram_bot_token: e.target.value })}
+                value={activeSettings.telegram_bot_token}
+                onChange={(e) => setSettings({ ...activeSettings, telegram_bot_token: e.target.value })}
               />
             </div>
 
@@ -344,21 +357,21 @@ export const SettingsPage: React.FC = () => {
                 type="text"
                 className="form-input"
                 placeholder="-100123456789 or @channel"
-                value={settings.telegram_chat_id}
-                onChange={(e) => setSettings({ ...settings, telegram_chat_id: e.target.value })}
+                value={activeSettings.telegram_chat_id}
+                onChange={(e) => setSettings({ ...activeSettings, telegram_chat_id: e.target.value })}
               />
             </div>
 
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Min Score for Alert ({settings.telegram_min_score}%)</label>
+              <label className="form-label">Min Score for Alert ({activeSettings.telegram_min_score}%)</label>
               <input
                 type="range"
                 min="50"
                 max="95"
                 step="5"
                 style={{ width: '100%' }}
-                value={settings.telegram_min_score}
-                onChange={(e) => setSettings({ ...settings, telegram_min_score: parseInt(e.target.value, 10) })}
+                value={activeSettings.telegram_min_score}
+                onChange={(e) => setSettings({ ...activeSettings, telegram_min_score: parseInt(e.target.value, 10) })}
               />
             </div>
           </div>

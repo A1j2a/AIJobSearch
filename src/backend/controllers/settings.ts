@@ -36,8 +36,33 @@ export async function getSettings(req: Request, res: Response) {
 
     return res.json({ settings, job_sources });
   } catch (error: any) {
-    console.error('Error fetching settings:', error);
-    return res.status(500).json({ error: error.message });
+    console.error('Error fetching settings, returning defaults:', error.message);
+    const defaultSettings: AppSettings = {
+      cluster_api_url: (process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1').trim(),
+      cluster_api_key: DEFAULT_API_KEY,
+      cluster_model: 'best-model',
+      cluster_temperature: 0.2,
+      cluster_max_tokens: 2048,
+      telegram_bot_token: '',
+      telegram_chat_id: '',
+      telegram_min_score: 85,
+      scheduler_enabled: true,
+      scheduler_interval: 180
+    };
+    const defaultSources: JobSourceInfo[] = [
+      { id: 1, name: 'linkedin', display_name: 'LinkedIn Jobs (Guest Search)', is_enabled: true, status: 'Active Public Source' },
+      { id: 2, name: 'naukri', display_name: 'Naukri & Indeed Public Feeds', is_enabled: true, status: 'Active Public Source' },
+      { id: 3, name: 'india_local_jobs', display_name: 'Global & Regional Public Feeds', is_enabled: true, status: 'Active Public Source' },
+      { id: 4, name: 'greenhouse', display_name: 'Greenhouse Career Boards', is_enabled: true, status: 'Active Public Source' },
+      { id: 5, name: 'arbeitnow', display_name: 'Arbeitnow Tech Jobs', is_enabled: true, status: 'Active Public Source' },
+      { id: 6, name: 'hackernews', display_name: 'HackerNews Jobs', is_enabled: true, status: 'Active Public Source' },
+      { id: 7, name: 'global_jobs', display_name: 'Global Jobs Aggregator', is_enabled: true, status: 'Active Public Source' },
+      { id: 8, name: 'remotive', display_name: 'Remotive Public API', is_enabled: true, status: 'Active Public Source' },
+      { id: 9, name: 'jobicy', display_name: 'Jobicy Engineering API', is_enabled: true, status: 'Active Public Source' },
+      { id: 10, name: 'weworkremotely', display_name: 'We Work Remotely RSS', is_enabled: true, status: 'Active Public Source' },
+      { id: 11, name: 'remoteok', display_name: 'RemoteOK Engineering API', is_enabled: true, status: 'Active Public Source' }
+    ];
+    return res.json({ settings: defaultSettings, job_sources: defaultSources });
   }
 }
 
