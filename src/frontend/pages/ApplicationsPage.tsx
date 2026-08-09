@@ -21,10 +21,10 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ onNavigateTo
     setLoading(true);
     try {
       const [appData, profileData] = await Promise.all([
-        fetchApplicationsApi(),
-        fetchProfile()
+        fetchApplicationsApi().catch(() => ({ applications: [] })),
+        fetchProfile().catch(() => null)
       ]);
-      setApplications(appData.applications);
+      setApplications(appData?.applications || []);
       setProfile(profileData);
     } catch (err) {
       console.error('Error loading applications:', err);
