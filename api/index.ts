@@ -9,34 +9,45 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// Initialize Database asynchronously
+// Lazy Database Initialization (Prevents top-level unhandled rejections on Vercel cold-starts)
 let dbReady = false;
-let dbError: Error | null = null;
+let dbInitPromise: Promise<void> | null = null;
 
-const dbInitPromise = initDatabase()
-  .then(() => { dbReady = true; console.log('[API] DB init successful'); })
-  .catch((err) => { dbError = err; console.error('[API] DB init failed:', err); });
+async function ensureDbReady(): Promise<void> {
+  if (dbReady) return;
+  if (!dbInitPromise) {
+    dbInitPromise = initDatabase()
+      .then(() => {
+        dbReady = true;
+        console.log('[API] DB init successful');
+      })
+      .catch((err) => {
+        console.error('[API] DB init failed:', err);
+        dbInitPromise = null; // Reset so next request can retry
+        throw err;
+      });
+  }
+  await dbInitPromise;
+}
 
 // Middleware: ensure DB is ready before routing
 app.use(async (req: Request, res: Response, next: NextFunction) => {
-  if (!dbReady) {
-    try {
-      await dbInitPromise;
-    } catch (e: any) {
-      dbError = e;
-    }
+  if (req.path === '/api/health') return next();
+  try {
+    await ensureDbReady();
+    next();
+  } catch (err: any) {
+    return res.status(503).json({
+      error: 'Database connection failed',
+      details: err.message || String(err)
+    });
   }
-  if (dbError && !dbReady) {
-    return res.status(503).json({ error: 'Database initialization failed', details: String(dbError) });
-  }
-  next();
 });
 
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({
     status: 'ok',
     dbReady,
-    dbError: dbError ? String(dbError) : null,
     isVercel: Boolean(process.env.VERCEL || process.env.USE_TURSO),
     timestamp: new Date().toISOString()
   });
