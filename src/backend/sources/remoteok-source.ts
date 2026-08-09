@@ -23,18 +23,15 @@ export class RemoteOKPublicSource implements JobSource {
   public async searchJobs(params: SearchQueryParams): Promise<RawJobData[]> {
     const rawJobs: RawJobData[] = [];
     const keywordsLower = params.keywords.map(k => k.toLowerCase());
+    const searchTokens = params.keywords.flatMap(k => k.toLowerCase().split(/\s+/)).filter(t => t.length > 2);
 
-    // Dynamically derive RemoteOK tags from active candidate keywords
-    const tags = Array.from(new Set(
-      params.keywords.flatMap(k => [
-        k.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-        k.split(' ')[0].toLowerCase()
-      ])
-    )).filter(Boolean).slice(0, 4);
+    // Dynamically derive RemoteOK tags from active candidate keywords and tech fallbacks
+    const tags = Array.from(new Set([
+      ...searchTokens,
+      'dev', 'react', 'mobile', 'javascript', 'typescript', 'frontend', 'engineer'
+    ])).slice(0, 5);
 
-    const activeTags = tags.length > 0 ? tags : ['dev', 'engineer'];
-
-    for (const tag of activeTags) {
+    for (const tag of tags) {
       try {
         console.log(`[JOB_SOURCE] RemoteOK querying tag: ${tag}...`);
         const response = await fetch(`https://remoteok.com/api?tag=${tag}`, {
@@ -50,8 +47,9 @@ export class RemoteOKPublicSource implements JobSource {
             const titleLower = (item.position || '').toLowerCase();
             const descLower = (item.description || '').toLowerCase();
 
-            // Match strictly against active search keywords
-            const isMatch = keywordsLower.some(k => titleLower.includes(k) || descLower.includes(k));
+            // Match against full keywords or tech search tokens
+            const isMatch = keywordsLower.some(k => titleLower.includes(k) || descLower.includes(k)) ||
+                            searchTokens.some(t => titleLower.includes(t) || descLower.includes(t));
 
             if (isMatch) {
               const emailMatch = descLower.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);

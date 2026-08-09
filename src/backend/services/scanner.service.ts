@@ -267,7 +267,24 @@ class ScannerService {
       const resumeText = rRow ? rRow.resume_text : '';
       let totalRawJobs: any[] = [];
 
-      for (const source of this.registeredSources) {
+      // Query database for enabled job sources configured in Settings
+      let enabledNames = new Set<string>();
+      try {
+        const enabledRows = await dbAsync.all('SELECT name FROM job_sources WHERE is_enabled = 1') as { name: string }[];
+        if (enabledRows && enabledRows.length > 0) {
+          enabledNames = new Set(enabledRows.map(r => r.name));
+        }
+      } catch (err: any) {
+        console.warn('[SCANNER] Unable to fetch job_sources settings, defaulting to all active sources:', err.message);
+      }
+
+      const activeSourcesToSearch = this.registeredSources.filter(source => 
+        enabledNames.size === 0 || enabledNames.has(source.name)
+      );
+
+      console.log(`[SCANNER] Searching ${activeSourcesToSearch.length} enabled job sources: ${activeSourcesToSearch.map(s => s.name).join(', ')}`);
+
+      for (const source of activeSourcesToSearch) {
         if (this.isAbortRequested) {
           console.log('[SCANNER] Abort requested. Stopping source search...');
           this.activeStatus.status = 'COMPLETED';

@@ -21,6 +21,7 @@ export class WeWorkRemotelyPublicSource implements JobSource {
   public async searchJobs(params: SearchQueryParams): Promise<RawJobData[]> {
     const rawJobs: RawJobData[] = [];
     const keywordsLower = params.keywords.map(k => k.toLowerCase());
+    const searchTokens = params.keywords.flatMap(k => k.toLowerCase().split(/\s+/)).filter(t => t.length > 2);
 
     const feeds = [
       'https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss',
@@ -42,8 +43,9 @@ export class WeWorkRemotelyPublicSource implements JobSource {
           const titleLower = item.title.toLowerCase();
           const descLower = item.description.toLowerCase();
 
-          // Dynamically match strictly against active search keywords
-          const isMatch = keywordsLower.some(k => titleLower.includes(k) || descLower.includes(k));
+          // Dynamically match against active search keywords or tokens
+          const isMatch = keywordsLower.some(k => titleLower.includes(k) || descLower.includes(k)) ||
+                          searchTokens.some(t => titleLower.includes(t) || descLower.includes(t));
 
           if (isMatch) {
             rawJobs.push({

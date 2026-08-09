@@ -21,6 +21,7 @@ export class JobicyPublicSource implements JobSource {
   public async searchJobs(params: SearchQueryParams): Promise<RawJobData[]> {
     const rawJobs: RawJobData[] = [];
     const keywordsLower = params.keywords.map(k => k.toLowerCase());
+    const searchTokens = params.keywords.flatMap(k => k.toLowerCase().split(/\s+/)).filter(t => t.length > 2);
 
     try {
       console.log(`[JOB_SOURCE] Jobicy querying engineering remote jobs...`);
@@ -33,8 +34,9 @@ export class JobicyPublicSource implements JobSource {
           const titleLower = (item.jobTitle || '').toLowerCase();
           const descLower = (item.jobDescription || '').toLowerCase();
 
-          // Dynamically match strictly against active search keywords
-          const isMatch = keywordsLower.some(k => titleLower.includes(k) || descLower.includes(k));
+          // Dynamically match against active search keywords or tokens
+          const isMatch = keywordsLower.some(k => titleLower.includes(k) || descLower.includes(k)) ||
+                          searchTokens.some(t => titleLower.includes(t) || descLower.includes(t));
 
           if (isMatch) {
             rawJobs.push({
