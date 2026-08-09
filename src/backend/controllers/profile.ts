@@ -215,9 +215,24 @@ export function syncProfileWithResume(resumeText: string, activeResumeId: number
 
 export function getProfile(req: Request, res: Response) {
   try {
-    const row = db.prepare('SELECT * FROM profile ORDER BY id ASC LIMIT 1').get() as any;
+    let row = db.prepare('SELECT * FROM profile ORDER BY id ASC LIMIT 1').get() as any;
     if (!row) {
-      return res.status(404).json({ error: 'Profile not found' });
+      db.prepare(`
+        INSERT INTO profile (
+          name, primary_role, experience_years, experience_text, primary_location,
+          preferred_locations, preferred_roles, core_skills
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        'Ajay Patidar',
+        'React Native Developer',
+        4.0,
+        '4 years in React Native, Mobile Apps & Fullstack Systems',
+        'Ahmedabad, India',
+        JSON.stringify(['Ahmedabad', 'Remote', 'India', 'Worldwide']),
+        JSON.stringify(['React Native Developer', 'Senior React Native Developer', 'Mobile Engineer', 'Frontend Developer']),
+        JSON.stringify(['React Native', 'React.js', 'TypeScript', 'JavaScript', 'Redux', 'REST API', 'Node.js', 'iOS', 'Android'])
+      );
+      row = db.prepare('SELECT * FROM profile ORDER BY id ASC LIMIT 1').get() as any;
     }
 
     let activeResume: ResumeVersion | undefined = undefined;

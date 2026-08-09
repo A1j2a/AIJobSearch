@@ -1,91 +1,34 @@
 import Database from 'better-sqlite3';
-import { createClient, Client } from '@libsql/client';
 import path from 'path';
 import fs from 'fs';
 
-const tursoUrl = (process.env.TURSO_DATABASE_URL || '').trim();
-const tursoAuthToken = (process.env.TURSO_AUTH_TOKEN || '').trim();
-
-export const isTursoMode = Boolean(tursoUrl && (tursoUrl.startsWith('libsql://') || tursoUrl.startsWith('https://')));
-
-let sqliteDb: any = null;
-let tursoClient: Client | null = null;
-
-if (isTursoMode) {
-  console.log(`[DB] ☁️ Turso Cloud Serverless DB Active (${tursoUrl.split('@')[0]})`);
-  tursoClient = createClient({
-    url: tursoUrl,
-    authToken: tursoAuthToken
-  });
-} else {
-  const dataDir = path.resolve(process.cwd(), 'data');
-  if (!fs.existsSync(dataDir)) {
-    try {
-      fs.mkdirSync(dataDir, { recursive: true });
-    } catch (e) {}
-  }
-
-  const dbPath = path.resolve(dataDir, 'jobsearch.db');
-  sqliteDb = new Database(dbPath);
+// On Vercel serverless environment, use /tmp writable directory for SQLite database storage
+const dataDir = process.env.VERCEL ? '/tmp' : path.resolve(process.cwd(), 'data');
+if (!fs.existsSync(dataDir)) {
   try {
-    sqliteDb.pragma('journal_mode = WAL');
+    fs.mkdirSync(dataDir, { recursive: true });
   } catch (e) {}
 }
 
-// Database Wrapper Abstraction for Dual Local / Turso Execution
+const dbPath = path.resolve(dataDir, 'jobsearch.db');
+export const sqliteDb = new Database(dbPath);
+
+try {
+  sqliteDb.pragma('journal_mode = WAL');
+} catch (e) {}
+
+// Unified Database Abstraction
 export const db = {
   prepare: (sql: string) => {
-    if (isTursoMode && tursoClient) {
-      return {
-        get: (...args: any[]) => {
-          try {
-            const res = (tursoClient as any).executeSync ? (tursoClient as any).executeSync({ sql, args }) : null;
-            return res?.rows?.[0] || null;
-          } catch (e) {
-            return null;
-          }
-        },
-        all: (...args: any[]) => {
-          try {
-            const res = (tursoClient as any).executeSync ? (tursoClient as any).executeSync({ sql, args }) : null;
-            return res?.rows || [];
-          } catch (e) {
-            return [];
-          }
-        },
-        run: (...args: any[]) => {
-          try {
-            const res = (tursoClient as any).executeSync ? (tursoClient as any).executeSync({ sql, args }) : null;
-            return { changes: Number(res?.rowsAffected || 0), lastInsertRowid: Number(res?.lastInsertRowid || 0) };
-          } catch (e) {
-            return { changes: 0, lastInsertRowid: 0 };
-          }
-        }
-      };
-    }
-
-    // Local SQLite Driver
     return sqliteDb.prepare(sql);
   },
-
   exec: (sql: string) => {
-    if (isTursoMode && tursoClient) {
-      try {
-        (tursoClient as any).executeSync ? (tursoClient as any).executeSync(sql) : null;
-      } catch (e) {}
-      return;
-    }
     return sqliteDb.exec(sql);
   }
 };
 
 export function initDatabase() {
-  if (isTursoMode) {
-    console.log('[DB] Turso Cloud Serverless DB Connected.');
-    return;
-  }
-
-  console.log(`[DB] Initializing SQLite database...`);
+  console.log(`[DB] Initializing SQLite database at ${dbPath}...`);
 
   // 1. Resume Versions table
   db.exec(`
@@ -224,6 +167,26 @@ export function initDatabase() {
     );
   `);
 
+  // 9. Job Sources table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS job_sources (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      display_name TEXT NOT NULL,
+      is_enabled INTEGER DEFAULT 1,
+      is_restricted INTEGER DEFAULT 0,
+      status_message TEXT
+    );
+  `);
+
+  try {
+    db.exec("ALTER TABLE job_sources ADD COLUMN is_restricted INTEGER DEFAULT 0;");
+  } catch (e) {}
+
+  try {
+    db.exec("ALTER TABLE job_sources ADD COLUMN status_message TEXT;");
+  } catch (e) {}
+
   // Seed default Profile if empty
   const profileCount = db.prepare('SELECT COUNT(*) as count FROM profile').get() as { count: number };
   if (!profileCount || profileCount.count === 0) {
@@ -265,9 +228,10 @@ export function initDatabase() {
   }
 
   // Seed Default App Settings
+  const HARDCODED_CLUSTER_KEY = 'cp_b585d212b386450a88f866049aa19fc0af387b46279719b75c588543e275dede';
   const defaultSettingsMap: Record<string, string> = {
     cluster_api_url: process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1',
-    cluster_api_key: (process.env.CLUSTER_API_KEY || '').trim(),
+    cluster_api_key: (process.env.CLUSTER_API_KEY || '').trim() || HARDCODED_CLUSTER_KEY,
     cluster_model: 'best-model',
     cluster_temperature: '0.2',
     cluster_max_tokens: '2048',
@@ -284,12 +248,6 @@ export function initDatabase() {
     insertSetting.run(key, value);
   }
 
-  // Force sync process.env.CLUSTER_API_KEY to DB if DB row is currently empty
-  const envKey = (process.env.CLUSTER_API_KEY || '').trim();
-  if (envKey) {
-    db.prepare("UPDATE settings SET value = ? WHERE key = 'cluster_api_key' AND (value = '' OR value IS NULL)").run(envKey);
-  }
-
   // Seed Job Sources
   const defaultSources = [
     { name: 'linkedin', display_name: 'LinkedIn Jobs (Guest Search)', is_enabled: 1, status: 'ACTIVE' },
@@ -304,25 +262,6 @@ export function initDatabase() {
     { name: 'weworkremotely', display_name: 'We Work Remotely RSS', is_enabled: 1, status: 'ACTIVE' },
     { name: 'remoteok', display_name: 'RemoteOK Engineering API', is_enabled: 1, status: 'ACTIVE' }
   ];
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS job_sources (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      display_name TEXT NOT NULL,
-      is_enabled INTEGER DEFAULT 1,
-      is_restricted INTEGER DEFAULT 0,
-      status_message TEXT
-    );
-  `);
-
-  try {
-    db.exec("ALTER TABLE job_sources ADD COLUMN is_restricted INTEGER DEFAULT 0;");
-  } catch (e) {}
-
-  try {
-    db.exec("ALTER TABLE job_sources ADD COLUMN status_message TEXT;");
-  } catch (e) {}
 
   const insertSource = db.prepare(`
     INSERT INTO job_sources (name, display_name, is_enabled, is_restricted, status_message)

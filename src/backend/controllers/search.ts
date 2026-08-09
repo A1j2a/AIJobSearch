@@ -4,9 +4,24 @@ import { SearchConfig } from '../../shared/types.js';
 
 export function getSearchConfig(req: Request, res: Response) {
   try {
-    const row = db.prepare('SELECT * FROM search_configs ORDER BY id ASC LIMIT 1').get() as any;
+    let row = db.prepare('SELECT * FROM search_configs ORDER BY id ASC LIMIT 1').get() as any;
     if (!row) {
-      return res.status(404).json({ error: 'Search config not found' });
+      db.prepare(`
+        INSERT INTO search_configs (
+          keywords, location, min_experience, max_experience, remote_allowed,
+          job_type, posted_within, min_match_score
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        JSON.stringify(['React Native Developer', 'Senior React Native Developer', 'Mobile Engineer']),
+        'Ahmedabad',
+        2,
+        6,
+        1,
+        'Full Time',
+        '30 days',
+        80
+      );
+      row = db.prepare('SELECT * FROM search_configs ORDER BY id ASC LIMIT 1').get() as any;
     }
 
     const config: SearchConfig = {
