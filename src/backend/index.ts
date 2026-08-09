@@ -25,9 +25,11 @@ app.get('/health', (req, res) => {
 });
 
 // Start Express server
-app.listen(PORT, () => {
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(Number(PORT), HOST, () => {
   console.log(`\n==================================================`);
-  console.log(` 🚀 AI Job Finder Backend API running on http://localhost:${PORT}`);
+  console.log(` 🚀 AI Job Finder Backend API running on http://127.0.0.1:${PORT}`);
   console.log(` 📁 SQLite Database: data/jobsearch.db`);
   console.log(`==================================================\n`);
 });
+
