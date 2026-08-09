@@ -1,4 +1,4 @@
-import { db, dbAsync } from '../config/database.js';
+import { dbAsync } from '../config/database.js';
 import { PublicRemotiveSource } from '../sources/remotive-source.js';
 import { GreenhousePublicSource } from '../sources/greenhouse-source.js';
 import { JobicyPublicSource } from '../sources/jobicy-source.js';
@@ -40,17 +40,17 @@ class ScannerService {
     totalDbAnalyzed: 0
   };
 
-  public stopScan(): { success: boolean; message: string } {
+  public async stopScan(): Promise<{ success: boolean; message: string }> {
     if (this.activeStatus.status === 'RUNNING') {
       this.isAbortRequested = true;
       this.activeStatus.status = 'COMPLETED';
       this.activeStatus.currentStep = 'Job scan manually stopped by user.';
 
       try {
-        db.prepare(`
+        await dbAsync.run(`
           INSERT INTO logs (component, event, status, message)
           VALUES (?, ?, ?, ?)
-        `).run('SCANNER', 'SCAN_STOPPED', 'WARNING', 'Job scan manually stopped by user.');
+        `, ['SCANNER', 'SCAN_STOPPED', 'WARNING', 'Job scan manually stopped by user.']);
       } catch (e) { }
 
       return { success: true, message: 'Job scan stopped successfully.' };
@@ -72,11 +72,11 @@ class ScannerService {
     new RemoteOKPublicSource()
   ];
 
-  public getStatus(): ScanProgressStatus {
+  public async getStatus(): Promise<ScanProgressStatus> {
     try {
-      const totJobs = db.prepare('SELECT COUNT(*) as c FROM jobs').get() as any;
-      const totAna = db.prepare('SELECT COUNT(*) as c FROM job_analysis').get() as any;
-      const totStrong = db.prepare('SELECT COUNT(*) as c FROM job_analysis WHERE match_score >= 80').get() as any;
+      const totJobs = await dbAsync.get('SELECT COUNT(*) as c FROM jobs') as any;
+      const totAna = await dbAsync.get('SELECT COUNT(*) as c FROM job_analysis') as any;
+      const totStrong = await dbAsync.get('SELECT COUNT(*) as c FROM job_analysis WHERE match_score >= 80') as any;
 
       return {
         ...this.activeStatus,
@@ -91,10 +91,10 @@ class ScannerService {
 
   public async reanalyzeAllJobs(): Promise<ScanProgressStatus> {
     if (this.activeStatus.status === 'RUNNING') {
-      return this.getStatus();
+      return await this.getStatus();
     }
 
-    const allJobs = db.prepare('SELECT * FROM jobs').all() as any[];
+    const allJobs = await dbAsync.all('SELECT * FROM jobs') as any[];
 
     this.activeStatus = {
       status: 'RUNNING',
@@ -108,9 +108,9 @@ class ScannerService {
     // Execute background reanalysis loop asynchronously
     (async () => {
       try {
-        const sRow = db.prepare('SELECT * FROM search_configs ORDER BY id ASC LIMIT 1').get() as any;
-        const pRow = db.prepare('SELECT * FROM profile ORDER BY id ASC LIMIT 1').get() as any;
-        const rRow = db.prepare('SELECT * FROM resume_versions WHERE is_active = 1 LIMIT 1').get() as any;
+        const sRow = await dbAsync.get('SELECT * FROM search_configs ORDER BY id ASC LIMIT 1') as any;
+        const pRow = await dbAsync.get('SELECT * FROM profile ORDER BY id ASC LIMIT 1') as any;
+        const rRow = await dbAsync.get('SELECT * FROM resume_versions WHERE is_active = 1 LIMIT 1') as any;
 
         if (!sRow || !pRow) {
           throw new Error('Search config or profile not found in database.');
@@ -130,16 +130,6 @@ class ScannerService {
         };
 
         const resumeText = rRow ? rRow.resume_text : '';
-
-        const insertAnalysis = db.prepare(`
-          INSERT OR REPLACE INTO job_analysis (
-            job_id, match_score, role_score, skills_score, experience_score, location_score,
-            employment_type_score, salary_score, seniority_score, other_score,
-            matching_skills, missing_skills, required_skills, nice_to_have_skills,
-            ai_summary, recommendation, analyzed_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `);
-
         let count = 0;
         let strongMatchCount = 0;
 
@@ -167,7 +157,14 @@ class ScannerService {
 
           const analysis = await aiProvider.analyzeJob(rawJob, profile, searchConfig, resumeText);
 
-          insertAnalysis.run(
+          await dbAsync.run(`
+            INSERT OR REPLACE INTO job_analysis (
+              job_id, match_score, role_score, skills_score, experience_score, location_score,
+              employment_type_score, salary_score, seniority_score, other_score,
+              matching_skills, missing_skills, required_skills, nice_to_have_skills,
+              ai_summary, recommendation, analyzed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          `, [
             raw.id,
             analysis.matchScore,
             analysis.scoreBreakdown?.roleScore || 0,
@@ -184,7 +181,7 @@ class ScannerService {
             JSON.stringify(analysis.niceToHaveSkills),
             analysis.reason,
             analysis.recommendation
-          );
+          ]);
 
           count++;
           this.activeStatus.jobsAnalyzed = count;
@@ -197,10 +194,10 @@ class ScannerService {
         this.activeStatus.status = 'COMPLETED';
         this.activeStatus.currentStep = `Re-analysis completed! Successfully re-analyzed all ${count} jobs with Cluster Protocol AI.`;
 
-        db.prepare(`
+        await dbAsync.run(`
           INSERT INTO logs (component, event, status, message)
           VALUES (?, ?, ?, ?)
-        `).run('SCANNER', 'REANALYZE_COMPLETE', 'SUCCESS', `Re-analyzed ${count} jobs successfully.`);
+        `, ['SCANNER', 'REANALYZE_COMPLETE', 'SUCCESS', `Re-analyzed ${count} jobs successfully.`]);
       } catch (err: any) {
         console.error('[SCANNER] Re-analysis error:', err);
         this.activeStatus.status = 'FAILED';
@@ -209,12 +206,12 @@ class ScannerService {
       }
     })();
 
-    return this.getStatus();
+    return await this.getStatus();
   }
 
   public async executeRealJobScan(): Promise<ScanProgressStatus> {
     if (this.activeStatus.status === 'RUNNING') {
-      return this.getStatus();
+      return await this.getStatus();
     }
 
     this.isAbortRequested = false;
@@ -229,14 +226,14 @@ class ScannerService {
     };
 
     try {
-      db.prepare(`
+      await dbAsync.run(`
         INSERT INTO logs (component, event, status, message)
         VALUES (?, ?, ?, ?)
-      `).run('SCANNER', 'REAL_SCAN_START', 'INFO', 'Real job scanning cycle initiated across public job sources.');
+      `, ['SCANNER', 'REAL_SCAN_START', 'INFO', 'Real job scanning cycle initiated across public job sources.']);
 
-      const sRow = db.prepare('SELECT * FROM search_configs ORDER BY id ASC LIMIT 1').get() as any;
-      const pRow = db.prepare('SELECT * FROM profile ORDER BY id ASC LIMIT 1').get() as any;
-      const rRow = db.prepare('SELECT * FROM resume_versions WHERE is_active = 1 LIMIT 1').get() as any;
+      const sRow = await dbAsync.get('SELECT * FROM search_configs ORDER BY id ASC LIMIT 1') as any;
+      const pRow = await dbAsync.get('SELECT * FROM profile ORDER BY id ASC LIMIT 1') as any;
+      const rRow = await dbAsync.get('SELECT * FROM resume_versions WHERE is_active = 1 LIMIT 1') as any;
 
       if (!sRow || !pRow) {
         throw new Error('Search config or profile not found in database.');
@@ -244,28 +241,28 @@ class ScannerService {
 
       const searchConfig: SearchConfig = {
         ...sRow,
-        keywords: JSON.parse(sRow.keywords || '[]'),
+        keywords: Array.isArray(sRow.keywords) ? sRow.keywords : JSON.parse(sRow.keywords || '[]'),
         remote_allowed: Boolean(sRow.remote_allowed)
       };
 
       const profile: UserProfile = {
         ...pRow,
-        preferred_locations: JSON.parse(pRow.preferred_locations || '[]'),
-        preferred_roles: JSON.parse(pRow.preferred_roles || '[]'),
-        core_skills: JSON.parse(pRow.core_skills || '[]')
+        preferred_locations: Array.isArray(pRow.preferred_locations) ? pRow.preferred_locations : JSON.parse(pRow.preferred_locations || '[]'),
+        preferred_roles: Array.isArray(pRow.preferred_roles) ? pRow.preferred_roles : JSON.parse(pRow.preferred_roles || '[]'),
+        core_skills: Array.isArray(pRow.core_skills) ? pRow.core_skills : JSON.parse(pRow.core_skills || '[]')
       };
 
       // Clean previous unsaved discovered jobs before running new scan.
       // Saved / Applied jobs (in applications table) are permanently preserved!
-      db.prepare(`
+      await dbAsync.run(`
         DELETE FROM job_analysis 
         WHERE job_id NOT IN (SELECT job_id FROM applications)
-      `).run();
+      `);
 
-      db.prepare(`
+      await dbAsync.run(`
         DELETE FROM jobs 
         WHERE id NOT IN (SELECT job_id FROM applications)
-      `).run();
+      `);
 
       const resumeText = rRow ? rRow.resume_text : '';
       let totalRawJobs: any[] = [];
@@ -275,7 +272,7 @@ class ScannerService {
           console.log('[SCANNER] Abort requested. Stopping source search...');
           this.activeStatus.status = 'COMPLETED';
           this.activeStatus.currentStep = 'Job scan stopped by user.';
-          return this.getStatus();
+          return await this.getStatus();
         }
 
         this.activeStatus.currentStep = `Searching ${source.displayName}...`;
@@ -298,23 +295,6 @@ class ScannerService {
       this.activeStatus.jobsFound = totalRawJobs.length;
       this.activeStatus.currentStep = `Found ${totalRawJobs.length} raw job listings. Normalizing & deduplicating...`;
 
-      const insertJob = db.prepare(`
-        INSERT OR IGNORE INTO jobs (
-          source, external_id, title, company, location, remote, salary_min, salary_max,
-          salary_currency, experience_min, experience_max, employment_type, description,
-          job_url, company_url, contact_email, posted_date, is_demo
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-      `);
-
-      const insertAnalysis = db.prepare(`
-        INSERT OR REPLACE INTO job_analysis (
-          job_id, match_score, role_score, skills_score, experience_score, location_score,
-          employment_type_score, salary_score, seniority_score, other_score,
-          matching_skills, missing_skills, required_skills, nice_to_have_skills,
-          ai_summary, recommendation
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-
       let addedCount = 0;
       let duplicateCount = 0;
       let filteredOutCount = 0;
@@ -324,7 +304,6 @@ class ScannerService {
       const candidateSkills = (Array.isArray(profile.core_skills) ? profile.core_skills : JSON.parse((profile.core_skills as any) || '[]')).map((s: string) => s.toLowerCase());
       const prefLocs = (Array.isArray(profile.preferred_locations) ? profile.preferred_locations : JSON.parse((profile.preferred_locations as any) || '[]')).map((l: string) => l.toLowerCase());
       const primaryRoleLower = (profile.primary_role || '').toLowerCase();
-      const targetCity = (searchConfig.location || profile.primary_location || '').toLowerCase().split(',')[0].trim();
 
       const searchKeywords = (searchConfig.keywords || []).map(k => k.toLowerCase());
 
@@ -333,7 +312,7 @@ class ScannerService {
           console.log('[SCANNER] Abort requested. Halting job evaluation...');
           this.activeStatus.status = 'COMPLETED';
           this.activeStatus.currentStep = `Job scan stopped by user. Evaluated ${addedCount} jobs.`;
-          return this.getStatus();
+          return await this.getStatus();
         }
         const raw = totalRawJobs[i];
         const titleLower = (raw.title || '').toLowerCase();
@@ -383,17 +362,23 @@ class ScannerService {
         const contactEmail = raw.contactEmail || (emailMatch ? emailMatch[0] : null);
 
         let jobId: number;
-        const existingJob = db.prepare(`
+        const existingJob = await dbAsync.get(`
           SELECT id FROM jobs 
           WHERE (external_id = ? AND external_id != '') 
              OR (job_url = ? AND job_url != '') 
              OR (title = ? AND company = ?)
-        `).get(raw.externalId || '', raw.jobUrl || '', raw.title || '', raw.company || '') as any;
+        `, [raw.externalId || '', raw.jobUrl || '', raw.title || '', raw.company || '']) as any;
 
         if (existingJob) {
           jobId = Number(existingJob.id);
         } else {
-          const res = insertJob.run(
+          await dbAsync.run(`
+            INSERT OR IGNORE INTO jobs (
+              source, external_id, title, company, location, remote, salary_min, salary_max,
+              salary_currency, experience_min, experience_max, employment_type, description,
+              job_url, company_url, contact_email, posted_date, is_demo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+          `, [
             raw.source,
             raw.externalId,
             raw.title,
@@ -411,25 +396,22 @@ class ScannerService {
             raw.companyUrl || null,
             contactEmail || null,
             raw.postedDate || 'Recently'
-          );
+          ]);
 
-          if (res.changes > 0) {
+          const reFetch = await dbAsync.get(`
+            SELECT id FROM jobs 
+            WHERE (external_id = ? AND external_id != '') 
+               OR (job_url = ? AND job_url != '') 
+               OR (title = ? AND company = ?)
+            ORDER BY id DESC LIMIT 1
+          `, [raw.externalId || '', raw.jobUrl || '', raw.title || '', raw.company || '']) as any;
+
+          if (reFetch) {
             addedCount++;
-            jobId = Number(res.lastInsertRowid);
+            jobId = Number(reFetch.id);
           } else {
-            const reFetch = db.prepare(`
-              SELECT id FROM jobs 
-              WHERE (external_id = ? AND external_id != '') 
-                 OR (job_url = ? AND job_url != '') 
-                 OR (title = ? AND company = ?)
-            `).get(raw.externalId || '', raw.jobUrl || '', raw.title || '', raw.company || '') as any;
-
-            if (reFetch) {
-              jobId = Number(reFetch.id);
-            } else {
-              duplicateCount++;
-              continue;
-            }
+            duplicateCount++;
+            continue;
           }
         }
 
@@ -439,7 +421,7 @@ class ScannerService {
         }
 
         // Verify jobId actually exists in jobs table to strictly prevent Foreign Key errors
-        const jobCheck = db.prepare("SELECT id FROM jobs WHERE id = ?").get(jobId) as any;
+        const jobCheck = await dbAsync.get("SELECT id FROM jobs WHERE id = ?", [jobId]) as any;
         if (!jobCheck) {
           console.warn(`[SCANNER] Job ID ${jobId} not found in jobs table for ${raw.title}. Skipping analysis.`);
           continue;
@@ -449,7 +431,14 @@ class ScannerService {
         const analysis = await aiProvider.analyzeJob(raw, profile, searchConfig, resumeText);
 
         try {
-          insertAnalysis.run(
+          await dbAsync.run(`
+            INSERT OR REPLACE INTO job_analysis (
+              job_id, match_score, role_score, skills_score, experience_score, location_score,
+              employment_type_score, salary_score, seniority_score, other_score,
+              matching_skills, missing_skills, required_skills, nice_to_have_skills,
+              ai_summary, recommendation
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [
             jobId,
             analysis.matchScore,
             analysis.scoreBreakdown?.roleScore || 0,
@@ -466,7 +455,7 @@ class ScannerService {
             JSON.stringify(analysis.niceToHaveSkills),
             analysis.reason,
             analysis.recommendation
-          );
+          ]);
 
           this.activeStatus.jobsAnalyzed++;
           if (analysis.matchScore >= 80) {
@@ -480,29 +469,31 @@ class ScannerService {
 
       this.activeStatus.status = 'COMPLETED';
       if (addedCount === 0) {
-        this.activeStatus.currentStep = `Scan cycle completed. ${filteredOutCount} non-matching jobs pre-filtered out (0 AI tokens wasted). All ${duplicateCount} jobs saved in SQLite.`;
+        this.activeStatus.currentStep = `Scan cycle completed. ${filteredOutCount} non-matching jobs pre-filtered out (0 AI tokens wasted). All ${duplicateCount} jobs saved in DB.`;
       } else {
         this.activeStatus.currentStep = `Scan complete. Collected ${addedCount} matching real jobs (${filteredOutCount} non-matching jobs pre-filtered out, ${duplicateCount} duplicates skipped).`;
       }
 
-      db.prepare(`
+      await dbAsync.run(`
         INSERT INTO logs (component, event, status, message)
         VALUES (?, ?, ?, ?)
-      `).run('SCANNER', 'REAL_SCAN_COMPLETE', 'SUCCESS', `Scan complete. ${addedCount} matching jobs added, ${filteredOutCount} non-matching jobs pre-filtered out, ${duplicateCount} duplicates skipped.`);
+      `, ['SCANNER', 'REAL_SCAN_COMPLETE', 'SUCCESS', `Scan complete. ${addedCount} matching jobs added, ${filteredOutCount} non-matching jobs pre-filtered out, ${duplicateCount} duplicates skipped.`]);
 
-      return this.getStatus();
+      return await this.getStatus();
     } catch (err: any) {
       console.error('[SCANNER] Fatal scan error:', err);
       this.activeStatus.status = 'FAILED';
       this.activeStatus.currentStep = 'Scan failed';
       this.activeStatus.error = err.message;
 
-      db.prepare(`
-        INSERT INTO logs (component, event, status, message)
-        VALUES (?, ?, ?, ?)
-      `).run('SCANNER', 'REAL_SCAN_ERROR', 'ERROR', `Scan failed: ${err.message}`);
+      try {
+        await dbAsync.run(`
+          INSERT INTO logs (component, event, status, message)
+          VALUES (?, ?, ?, ?)
+        `, ['SCANNER', 'REAL_SCAN_ERROR', 'ERROR', `Scan failed: ${err.message}`]);
+      } catch (e) {}
 
-      return this.getStatus();
+      return await this.getStatus();
     }
   }
 }

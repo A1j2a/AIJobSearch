@@ -93,25 +93,16 @@ export async function selectResumeVersionApi(id: number): Promise<{ success: boo
 }
 
 export async function createResumeVersionApi(data: { name: string; version?: string; resume_text: string; file_path?: string; set_active?: boolean }): Promise<{ success: boolean; id: number; message: string }> {
-  try {
-    const res = await fetch('/api/resumes/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Server error creating resume version');
-    }
-    return await res.json();
-  } catch (e: any) {
-    console.warn('[RESUME_CREATE] Fail-safe fallback activated:', e.message);
-    return {
-      success: true,
-      id: Date.now(),
-      message: 'New resume version created and activated successfully.'
-    };
+  const res = await fetch('/api/resumes/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Server error creating resume version');
   }
+  return await res.json();
 }
 
 export async function fetchSearchConfig(): Promise<SearchConfig> {

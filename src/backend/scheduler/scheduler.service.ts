@@ -1,4 +1,4 @@
-import { db } from '../config/database.js';
+import { dbAsync } from '../config/database.js';
 import { runScheduledScan } from './scan-job.js';
 
 class SchedulerService {
@@ -6,14 +6,14 @@ class SchedulerService {
   private intervalMinutes: number = 180;
   private isRunning: boolean = false;
 
-  public init() {
-    this.reloadConfig();
+  public async init() {
+    await this.reloadConfig();
   }
 
-  public reloadConfig() {
+  public async reloadConfig() {
     try {
-      const enabledRow = db.prepare("SELECT value FROM settings WHERE key = 'scheduler_enabled'").get() as any;
-      const intervalRow = db.prepare("SELECT value FROM settings WHERE key = 'scheduler_interval'").get() as any;
+      const enabledRow = await dbAsync.get("SELECT value FROM settings WHERE key = 'scheduler_enabled'") as any;
+      const intervalRow = await dbAsync.get("SELECT value FROM settings WHERE key = 'scheduler_interval'") as any;
 
       const enabled = enabledRow?.value === '1';
       const interval = parseInt(intervalRow?.value || '180', 10);
@@ -35,7 +35,6 @@ class SchedulerService {
     this.isRunning = true;
     console.log(`[SCHEDULER] Service started. Running scan cycle every ${this.intervalMinutes} minute(s).`);
     
-    // Set node interval
     this.timer = setInterval(() => {
       runScheduledScan();
     }, this.intervalMinutes * 60 * 1000);

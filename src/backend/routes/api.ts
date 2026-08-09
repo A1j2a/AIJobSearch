@@ -35,27 +35,24 @@ router.get('/applications', getApplications);
 router.post('/applications/update', updateApplicationStatus);
 
 // Scanner Engine endpoints
-router.post('/scanner/start', async (req, res) => {
-  scannerService.executeRealJobScan();
+router.post('/scanner/start', (req, res) => {
+  scannerService.executeRealJobScan().catch(err => console.error('[SCANNER_BG_ERR]', err));
   res.json({ success: true, message: 'Real job scan launched in background.' });
 });
 
-router.post('/scanner/stop', (req, res) => {
-  const result = scannerService.stopScan();
+router.post('/scanner/stop', async (req, res) => {
+  const result = await scannerService.stopScan();
   res.json(result);
 });
 
-router.post('/scanner/reanalyze', async (req, res) => {
-  try {
-    scannerService.reanalyzeAllJobs();
-    res.json({ success: true, message: 'Re-analysis of all jobs launched in background.' });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.post('/scanner/reanalyze', (req, res) => {
+  scannerService.reanalyzeAllJobs().catch(err => console.error('[REANALYZE_BG_ERR]', err));
+  res.json({ success: true, message: 'Re-analysis of all jobs launched in background.' });
 });
 
-router.get('/scanner/status', (req, res) => {
-  res.json(scannerService.getStatus());
+router.get('/scanner/status', async (req, res) => {
+  const status = await scannerService.getStatus();
+  res.json(status);
 });
 
 // System Logs endpoints
