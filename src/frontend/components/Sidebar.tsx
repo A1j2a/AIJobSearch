@@ -6,11 +6,11 @@ import {
   Kanban,
   FileText,
   Search,
-  Scan,
   BarChart3,
   Terminal,
   Settings,
-  Bot
+  Sparkles,
+  X
 } from 'lucide-react';
 
 export type PageId =
@@ -20,7 +20,6 @@ export type PageId =
   | 'applications'
   | 'resume'
   | 'search'
-  | 'scanner'
   | 'analytics'
   | 'logs'
   | 'settings';
@@ -28,46 +27,74 @@ export type PageId =
 interface SidebarProps {
   activePage: PageId;
   onSelectPage: (page: PageId) => void;
+  isOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activePage, onSelectPage }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activePage, onSelectPage, isOpen, onCloseMobile }) => {
   const menuItems: { id: PageId; label: string; icon: React.ReactNode }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-    { id: 'jobs', label: 'Jobs', icon: <Briefcase size={18} /> },
+    { id: 'dashboard', label: 'Dashboard & Scan', icon: <LayoutDashboard size={18} /> },
+    { id: 'jobs', label: 'Discovered Jobs', icon: <Briefcase size={18} /> },
     { id: 'saved', label: 'Saved Jobs', icon: <BookmarkCheck size={18} /> },
     { id: 'applications', label: 'Applications', icon: <Kanban size={18} /> },
     { id: 'resume', label: 'Resume & Profile', icon: <FileText size={18} /> },
     { id: 'search', label: 'Search Criteria', icon: <Search size={18} /> },
-    { id: 'scanner', label: 'Job Scanner', icon: <Scan size={18} /> },
     { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={18} /> },
     { id: 'logs', label: 'System Logs', icon: <Terminal size={18} /> },
-    { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
+    { id: 'settings', label: 'Settings & AI', icon: <Settings size={18} /> },
   ];
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-header">
-        <Bot size={24} color="#2563eb" />
-        <span className="sidebar-brand">AI Job Finder</span>
-      </div>
+    <>
+      {/* Mobile Drawer Overlay Backdrop */}
+      <div
+        className={`drawer-backdrop ${isOpen ? 'open' : ''}`}
+        onClick={onCloseMobile}
+      />
 
-      <nav className="sidebar-nav">
-        {menuItems.map((item) => (
-          <button
-            key={item.id}
-            className={`nav-item ${activePage === item.id ? 'active' : ''}`}
-            onClick={() => onSelectPage(item.id)}
-          >
-            {item.icon}
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </nav>
+      <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
+        <div className="sidebar-header">
+          <div className="brand-logo-badge">
+            <Sparkles size={20} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div className="sidebar-brand-title">
+              Job Finder
+              <span className="brand-pro-tag">AI PRO</span>
+            </div>
+          </div>
+          {onCloseMobile && (
+            <button
+              onClick={onCloseMobile}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'none', padding: '4px' }}
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
 
-      <div className="sidebar-footer">
-        <div>Local AI Matcher v1.0</div>
-        <div>Mac Desktop Edition</div>
-      </div>
-    </aside>
+        <nav className="sidebar-nav">
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              className={`nav-item ${activePage === item.id ? 'active' : ''}`}
+              onClick={() => {
+                onSelectPage(item.id);
+                if (onCloseMobile) onCloseMobile();
+              }}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Cluster AI Engine v2.0</div>
+          <div>Desktop Enterprise Edition</div>
+        </div>
+      </aside>
+    </>
   );
 };

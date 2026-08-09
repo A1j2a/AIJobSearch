@@ -7,7 +7,6 @@ import { SearchConfigPage } from './pages/SearchConfigPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { JobsPage } from './pages/JobsPage';
 import { JobDetailPage } from './pages/JobDetailPage';
-import { ScannerPage } from './pages/ScannerPage';
 import { ApplicationsPage } from './pages/ApplicationsPage';
 import { LogsPage } from './pages/LogsPage';
 import { UserProfile } from '../shared/types';
@@ -18,6 +17,7 @@ export const App: React.FC = () => {
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [clusterAiStatus, setClusterAiStatus] = useState<boolean>(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
 
   useEffect(() => {
     loadInitialData();
@@ -39,26 +39,27 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleStartScan = () => {
-    setActivePage('scanner');
-  };
-
   const handleNavigateToJobDetail = (jobId: number) => {
     setSelectedJobId(jobId);
   };
 
   return (
     <div className="app-layout">
-      <Sidebar activePage={activePage} onSelectPage={(page) => {
-        setSelectedJobId(null);
-        setActivePage(page);
-      }} />
+      <Sidebar
+        activePage={activePage}
+        onSelectPage={(page) => {
+          setSelectedJobId(null);
+          setActivePage(page);
+        }}
+        isOpen={isMobileDrawerOpen}
+        onCloseMobile={() => setIsMobileDrawerOpen(false)}
+      />
 
       <div className="main-content">
         <Header
           profile={profile}
           aiStatus={clusterAiStatus}
-          onStartScan={handleStartScan}
+          onToggleMobileDrawer={() => setIsMobileDrawerOpen(!isMobileDrawerOpen)}
         />
 
         {selectedJobId !== null ? (
@@ -70,7 +71,6 @@ export const App: React.FC = () => {
           <>
             {activePage === 'dashboard' && (
               <Dashboard
-                onNavigateToScanner={() => setActivePage('scanner')}
                 onNavigateToJobDetail={handleNavigateToJobDetail}
               />
             )}
@@ -99,18 +99,14 @@ export const App: React.FC = () => {
               <ApplicationsPage onNavigateToJobDetail={handleNavigateToJobDetail} />
             )}
 
-            {activePage === 'scanner' && (
-              <ScannerPage onScanCompleted={() => console.log('Real Scan completed!')} />
-            )}
-
             {activePage === 'analytics' && (
               <div className="page-container">
-                <div className="page-title-section">
-                  <h1 className="page-title">Analytics & Skill Gaps</h1>
+                <div style={{ marginBottom: '20px' }}>
+                  <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Analytics & Market Intelligence</h1>
                 </div>
                 <div className="card">
                   <p style={{ color: 'var(--text-secondary)' }}>
-                    Analytics dashboard visualizes top requested technical skills in your target market and identifies missing skill gaps. (Phase 7)
+                    Analytics dashboard visualizes top requested technical skills in your target market and identifies missing skill gaps across your resume versions.
                   </p>
                 </div>
               </div>

@@ -15,8 +15,8 @@ export function getSettings(req: Request, res: Response) {
     const sourcesRows = db.prepare('SELECT * FROM job_sources ORDER BY id ASC').all() as any[];
 
     const settings: AppSettings = {
-      cluster_api_url: kvMap['cluster_api_url'] || process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1',
-      cluster_api_key: kvMap['cluster_api_key'] || DEFAULT_API_KEY,
+      cluster_api_url: (kvMap['cluster_api_url'] || process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1').trim(),
+      cluster_api_key: (kvMap['cluster_api_key'] || '').trim() || (process.env.CLUSTER_API_KEY || '').trim(),
       cluster_model: kvMap['cluster_model'] || 'best-model',
       cluster_temperature: parseFloat(kvMap['cluster_temperature'] || '0.2'),
       cluster_max_tokens: parseInt(kvMap['cluster_max_tokens'] || '2048', 10),
@@ -94,14 +94,26 @@ export async function testClusterConnection(req: Request, res: Response) {
     const urlRow = db.prepare("SELECT value FROM settings WHERE key = 'cluster_api_url'").get() as any;
     const keyRow = db.prepare("SELECT value FROM settings WHERE key = 'cluster_api_key'").get() as any;
 
-    const url = req.body.url || urlRow?.value || process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1';
-    const apiKey = (req.body.apiKey !== undefined ? req.body.apiKey : (keyRow?.value || '')).trim() || (process.env.CLUSTER_API_KEY || '').trim();
+    const url = (req.body.url || urlRow?.value || process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1').trim();
+    
+    const bodyKey = typeof req.body?.apiKey === 'string' ? req.body.apiKey.trim() : '';
+    const dbKey = (keyRow?.value || '').trim();
+    const envKey = (process.env.CLUSTER_API_KEY || '').trim();
 
-    if (!apiKey.trim()) {
+    const apiKey = bodyKey || dbKey || envKey;
+
+    // Auto update database setting row if DB key was empty
+    if (!dbKey && envKey) {
+      try {
+        db.prepare("UPDATE settings SET value = ? WHERE key = 'cluster_api_key'").run(envKey);
+      } catch (e) {}
+    }
+
+    if (!apiKey) {
       return res.json({
         available: false,
         models: ['best-model', 'qwen', 'deepseek', 'llama'],
-        message: 'Cluster Protocol API Key is missing. Please enter your API key.'
+        message: 'Cluster Protocol API Key is missing. Please check your .env file or Settings.'
       });
     }
 

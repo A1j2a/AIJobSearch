@@ -383,7 +383,12 @@ class ScannerService {
         const contactEmail = raw.contactEmail || (emailMatch ? emailMatch[0] : null);
 
         let jobId: number;
-        const existingJob = db.prepare("SELECT id FROM jobs WHERE external_id = ? OR (job_url = ? AND job_url != '')").get(raw.externalId, raw.jobUrl || '') as any;
+        const existingJob = db.prepare(`
+          SELECT id FROM jobs 
+          WHERE (external_id = ? AND external_id != '') 
+             OR (job_url = ? AND job_url != '') 
+             OR (title = ? AND company = ?)
+        `).get(raw.externalId || '', raw.jobUrl || '', raw.title || '', raw.company || '') as any;
         
         if (existingJob) {
           jobId = Number(existingJob.id);
@@ -412,7 +417,13 @@ class ScannerService {
             addedCount++;
             jobId = Number(res.lastInsertRowid);
           } else {
-            const reFetch = db.prepare("SELECT id FROM jobs WHERE external_id = ? OR (job_url = ? AND job_url != '')").get(raw.externalId, raw.jobUrl || '') as any;
+            const reFetch = db.prepare(`
+              SELECT id FROM jobs 
+              WHERE (external_id = ? AND external_id != '') 
+                 OR (job_url = ? AND job_url != '') 
+                 OR (title = ? AND company = ?)
+            `).get(raw.externalId || '', raw.jobUrl || '', raw.title || '', raw.company || '') as any;
+
             if (reFetch) {
               jobId = Number(reFetch.id);
             } else {

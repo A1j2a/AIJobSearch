@@ -85,13 +85,13 @@ export const SearchConfigPage: React.FC = () => {
   };
 
   const locationPresets = [
-    { label: '🌎 All / Worldwide (Global Remote)', value: 'Worldwide', scope: 'WORLDWIDE' as const },
-    { label: '🇮🇳 India (Nationwide)', value: 'India', scope: 'COUNTRY' as const },
-    { label: '🇺🇸 United States', value: 'United States', scope: 'COUNTRY' as const },
-    { label: '🇬🇧 United Kingdom', value: 'United Kingdom', scope: 'COUNTRY' as const },
-    { label: '🇨🇦 Canada', value: 'Canada', scope: 'COUNTRY' as const },
-    { label: '🇪🇺 Europe / Remote', value: 'Europe', scope: 'COUNTRY' as const },
-    { label: '🏙️ Custom City (e.g. Ahmedabad)', value: profile?.primary_location?.split(',')[0] || 'Ahmedabad', scope: 'CITY' as const }
+    { label: 'All / Worldwide (Global Remote)', value: 'Worldwide', scope: 'WORLDWIDE' as const },
+    { label: 'India (Nationwide)', value: 'India', scope: 'COUNTRY' as const },
+    { label: 'United States', value: 'United States', scope: 'COUNTRY' as const },
+    { label: 'United Kingdom', value: 'United Kingdom', scope: 'COUNTRY' as const },
+    { label: 'Canada', value: 'Canada', scope: 'COUNTRY' as const },
+    { label: 'Europe / Remote', value: 'Europe', scope: 'COUNTRY' as const },
+    { label: 'Custom City (e.g. Ahmedabad)', value: profile?.primary_location?.split(',')[0] || 'Ahmedabad', scope: 'CITY' as const }
   ];
 
   if (loading || !config) {
@@ -193,10 +193,10 @@ export const SearchConfigPage: React.FC = () => {
 
         {/* Location Scope Quick Selectors */}
         <div className="form-group" style={{ marginBottom: '20px' }}>
-          <label className="form-label" style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <label className="form-label" style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
             <Globe size={16} color="var(--accent-primary)" /> Quick Location Presets & Scope
           </label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '6px' }}>
             {locationPresets.map((preset) => {
               const isSelected = config.location.toLowerCase() === preset.value.toLowerCase() ||
                 (preset.scope === 'WORLDWIDE' && ['worldwide', 'all', 'global', 'remote'].includes(config.location.toLowerCase()));
@@ -204,17 +204,13 @@ export const SearchConfigPage: React.FC = () => {
                 <button
                   type="button"
                   key={preset.value}
+                  className="preset-pill-btn"
                   onClick={() => setConfig({ ...config, location: preset.value, location_scope: preset.scope })}
                   style={{
-                    padding: '8px 14px',
-                    borderRadius: '20px',
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    border: isSelected ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                    backgroundColor: isSelected ? 'var(--accent-light)' : 'var(--bg-page)',
-                    color: isSelected ? 'var(--accent-primary)' : 'var(--text-primary)',
-                    transition: 'all 0.2s ease'
+                    border: isSelected ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                    backgroundColor: isSelected ? '#ccfbf1' : '#ffffff',
+                    color: isSelected ? '#0f766e' : 'var(--text-primary)',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
                   }}
                 >
                   {preset.label}
@@ -305,17 +301,51 @@ export const SearchConfigPage: React.FC = () => {
             </label>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Minimum AI Match Threshold ({config.min_match_score}%)</label>
-            <input
-              type="range"
-              min="50"
-              max="95"
-              step="5"
-              value={config.min_match_score}
-              onChange={(e) => setConfig({ ...config, min_match_score: parseInt(e.target.value, 10) })}
-              style={{ marginTop: '8px' }}
-            />
+          <div className="form-group" style={{ gridColumn: 'span 2', marginTop: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label className="form-label" style={{ marginBottom: 0 }}>Minimum AI Match Threshold</label>
+              <span className="badge badge-primary" style={{ fontSize: '0.85rem', fontWeight: 800, padding: '4px 12px' }}>
+                {config.min_match_score}% Match Requirement
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', margin: '10px 0' }}>
+              <input
+                type="range"
+                className="custom-range-slider"
+                min="50"
+                max="90"
+                step="5"
+                value={config.min_match_score}
+                onChange={(e) => setConfig({ ...config, min_match_score: parseInt(e.target.value, 10) })}
+              />
+            </div>
+
+            {/* Threshold Quick Presets */}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
+              {[
+                { val: 60, label: '60% (Broad Match)' },
+                { val: 70, label: '70% (Balanced)' },
+                { val: 80, label: '80% (Strict High Match)' },
+                { val: 85, label: '85% (Elite Only)' }
+              ].map(p => (
+                <button
+                  type="button"
+                  key={p.val}
+                  className="preset-pill-btn"
+                  onClick={() => setConfig({ ...config, min_match_score: p.val })}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '0.78rem',
+                    border: config.min_match_score === p.val ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                    backgroundColor: config.min_match_score === p.val ? '#ccfbf1' : '#ffffff',
+                    color: config.min_match_score === p.val ? '#0f766e' : 'var(--text-secondary)'
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
