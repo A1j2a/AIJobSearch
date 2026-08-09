@@ -32,6 +32,6 @@ jobs:
         run: |
           mkdir -p .vercel
           echo "{\"projectId\":\"$VERCEL_PROJECT_ID\",\"orgId\":\"$VERCEL_ORG_ID\"}" > .vercel/project.json
-          npx vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+          npx vercel pull --yes --environment=production --scope=$VERCEL_ORG_ID --token=$VERCEL_TOKEN
           npx vercel build --prod --token=$VERCEL_TOKEN
-          npx vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
+          npx vercel deploy --prebuilt --prod --scope=$VERCEL_ORG_ID --token=$VERCEL_TOKEN
