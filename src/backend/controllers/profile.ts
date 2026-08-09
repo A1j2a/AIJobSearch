@@ -19,24 +19,43 @@ function resolvePdfPath(targetPath: string): string | null {
   return null;
 }
 
-export function parseProfileFromResumeText(resumeText: string) {
+export function parseProfileFromResumeText(resumeText: string, resumeTitle?: string) {
   const lines = resumeText.split('\n').map(l => l.trim()).filter(Boolean);
 
   let name = 'Candidate Profile';
   for (const line of lines) {
-    if (!line.includes('@') && !line.toLowerCase().includes('http') && line.length < 40 && !line.toUpperCase().includes('RESUME')) {
+    const isLocationLine = ['india', 'ahmedabad', 'gujar', 'usa', 'street', 'road', 'mumbai', 'bangalore', 'pune', 'delhi', 'hyderabad', 'noida', 'remote'].some(loc => line.toLowerCase().includes(loc));
+    if (!isLocationLine && !line.includes('@') && !line.toLowerCase().includes('http') && line.length < 40 && !line.toUpperCase().includes('RESUME')) {
       const cleanName = line.replace(/[^a-zA-Z\s.]/g, '').trim();
-      if (cleanName.length > 2) { name = cleanName; break; }
+      if (cleanName.length > 2 && cleanName.toLowerCase() !== 'candidate profile' && cleanName.toLowerCase() !== 'software developer') {
+        name = cleanName;
+        break;
+      }
+    }
+  }
+
+  // Fallback or override if title contains a candidate name (e.g. "Uploaded: Neel Patel (2).pdf")
+  if (resumeTitle) {
+    const base = resumeTitle.replace(/^Uploaded:\s*/i, '').replace(/\.[^/.]+$/, '').replace(/[\d()_-]/g, ' ').trim();
+    const words = base.split(/\s+/).filter(w => w.length > 1 && !['resume', 'cv', 'v1', 'v2', 'v3', 'final', 'updated', 'pdf', 'doc', 'docx'].includes(w.toLowerCase()));
+    if (words.length >= 1) {
+      const derivedName = words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      if (name === 'Candidate Profile' || derivedName.length > name.length) {
+        name = derivedName;
+      }
     }
   }
 
   let primary_role = 'Software Developer';
-  for (let i = 0; i < Math.min(6, lines.length); i++) {
+  for (let i = 0; i < Math.min(8, lines.length); i++) {
     const l = lines[i];
     if (l.toLowerCase().includes('engineer') || l.toLowerCase().includes('developer') || l.toLowerCase().includes('architect') || l.toLowerCase().includes('lead') || l.toLowerCase().includes('manager')) {
       const parts = l.split(/[|•,\-]/);
-      primary_role = parts[0].trim();
-      break;
+      const cleanRole = parts[0].replace(/[^a-zA-Z\s]/g, '').trim();
+      if (cleanRole.length > 3) {
+        primary_role = cleanRole;
+        break;
+      }
     }
   }
 
@@ -45,7 +64,7 @@ export function parseProfileFromResumeText(resumeText: string) {
   const experience_text = `${experience_years}+ years professional experience`;
 
   const cities = ['Ahmedabad', 'Pune', 'Bangalore', 'Bengaluru', 'Mumbai', 'Delhi', 'Hyderabad', 'Gurgaon', 'Noida', 'Gandhinagar', 'Chennai', 'Kolkata', 'Remote'];
-  let primary_location = 'Ahmedabad, India';
+  let primary_location = 'Remote, India';
   for (const city of cities) {
     if (new RegExp('\\b' + city + '\\b', 'i').test(resumeText)) { primary_location = `${city}, India`; break; }
   }
@@ -61,9 +80,9 @@ export function parseProfileFromResumeText(resumeText: string) {
   return { name, primary_role, experience_years, experience_text, primary_location, preferred_locations, preferred_roles, core_skills };
 }
 
-export async function syncProfileWithResume(resumeText: string, activeResumeId: number) {
+export async function syncProfileWithResume(resumeText: string, activeResumeId: number, resumeTitle?: string) {
   try {
-    const parsed = parseProfileFromResumeText(resumeText);
+    const parsed = parseProfileFromResumeText(resumeText, resumeTitle);
     const existing = await dbAsync.get('SELECT id FROM profile ORDER BY id ASC LIMIT 1') as any;
 
     if (existing) {
@@ -116,8 +135,8 @@ export async function getProfile(req: Request, res: Response) {
       activeResume = { id: rRow.id, name: rRow.name, version: rRow.version, resume_text: rRow.resume_text, file_path: rRow.file_path, is_active: Boolean(rRow.is_active), created_at: rRow.created_at, updated_at: rRow.updated_at };
       
       // Auto-sync profile with active resume text if profile is still default or active resume mismatch
-      if (rRow.resume_text && (row.name === 'Ajay Patidar' || row.name === 'Candidate Profile' || row.active_resume_id !== rRow.id)) {
-        await syncProfileWithResume(rRow.resume_text, rRow.id);
+      if (rRow.resume_text && (row.name === 'Candidate Profile' || row.active_resume_id !== rRow.id)) {
+        await syncProfileWithResume(rRow.resume_text, rRow.id, rRow.name);
         const updatedRow = await dbAsync.get('SELECT * FROM profile ORDER BY id ASC LIMIT 1') as any;
         if (updatedRow) row = updatedRow;
       }
@@ -195,7 +214,7 @@ export async function selectResumeVersion(req: Request, res: Response) {
     await dbAsync.run('UPDATE resume_versions SET is_active = 0', []);
     await dbAsync.run('UPDATE resume_versions SET is_active = 1 WHERE id = ?', [id]);
     const rRow = await dbAsync.get('SELECT * FROM resume_versions WHERE id = ?', [id]) as any;
-    if (rRow) { await syncProfileWithResume(rRow.resume_text, id); }
+    if (rRow) { await syncProfileWithResume(rRow.resume_text, id, rRow.name); }
     else { await dbAsync.run('UPDATE profile SET active_resume_id = ?', [id]); }
     await dbAsync.run(`INSERT INTO logs (component, event, status, message) VALUES (?, ?, ?, ?)`, ['RESUME', 'SELECT_ACTIVE_RESUME', 'SUCCESS', `Active default resume set to ID ${id}.`]);
     return res.json({ success: true, message: 'Default active resume version & profile synced successfully' });
@@ -225,7 +244,7 @@ export async function createResumeVersion(req: Request, res: Response) {
     const newRow = await dbAsync.get('SELECT id FROM resume_versions ORDER BY id DESC LIMIT 1') as any;
     const newId = newRow?.id;
 
-    if (makeActive && newId) await syncProfileWithResume(text, newId);
+    if (makeActive && newId) await syncProfileWithResume(text, newId, resumeName);
 
     return res.json({ success: true, id: newId, message: 'New resume version created and profile synced successfully.' });
   } catch (error: any) {

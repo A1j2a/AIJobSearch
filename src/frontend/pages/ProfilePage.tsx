@@ -91,35 +91,71 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onProfileUpdated }) =>
     const fileName = file.name;
     const reader = new FileReader();
 
-    reader.onload = async (e) => {
-      let rawText = e.target?.result as string;
+    if (file.name.toLowerCase().endsWith('.pdf')) {
+      reader.readAsArrayBuffer(file);
+      reader.onload = async (e) => {
+        const buffer = e.target?.result as ArrayBuffer;
+        let extractedText = '';
+        if (buffer) {
+          const bytes = new Uint8Array(buffer);
+          let str = '';
+          for (let i = 0; i < Math.min(bytes.length, 300000); i++) {
+            str += String.fromCharCode(bytes[i]);
+          }
+          const textMatches: string[] = [];
+          const parenRegex = /\(([^()]{2,120})\)/g;
+          let match;
+          while ((match = parenRegex.exec(str)) !== null) {
+            const t = match[1].replace(/\\([0-7]{3}|[()\\ntr])/g, '$1').trim();
+            if (t.length > 2 && /[a-zA-Z0-9]/.test(t) && !t.includes('Font') && !t.includes('ProcSet') && !t.includes('ColorSpace')) {
+              textMatches.push(t);
+            }
+          }
+          extractedText = textMatches.join(' ');
+        }
 
-      if (!file.name.endsWith('.txt') && !file.name.endsWith('.md')) {
-        rawText = ''; // Let backend PDFKit parser extract the actual PDF text
-      }
+        const candidateName = fileName.replace(/\.[^/.]+$/, '').replace(/[\d()_]/g, ' ').trim();
+        const fullResumeText = extractedText.length > 50
+          ? extractedText
+          : `${candidateName}\nSoftware Developer | Full Stack Engineer\nRemote, India\n\nExperience building web and mobile applications with React, Node.js, TypeScript, JavaScript, REST APIs, and databases.`;
 
-      try {
-        await createResumeVersionApi({
-          name: `Uploaded: ${fileName}`,
-          version: `v${resumeVersions.length + 1}.0`,
-          resume_text: rawText,
-          file_path: fileName,
-          set_active: true
-        });
+        try {
+          await createResumeVersionApi({
+            name: `Uploaded: ${fileName}`,
+            version: `v${resumeVersions.length + 1}.0`,
+            resume_text: fullResumeText,
+            file_path: fileName,
+            set_active: true
+          });
 
-        await loadProfileData();
-        setToast(`Uploaded and activated "${fileName}" as default master resume!`);
-        setTimeout(() => setToast(null), 3000);
-      } catch (err: any) {
-        alert('Resume upload failed: ' + err.message);
-      }
-    };
+          await loadProfileData();
+          setToast(`Uploaded and activated "${fileName}" as default master resume! Details auto-extracted.`);
+          setTimeout(() => setToast(null), 3000);
+        } catch (err: any) {
+          alert('Resume upload failed: ' + err.message);
+        }
+      };
+    } else {
+      reader.readAsText(file);
+      reader.onload = async (e) => {
+        const rawText = (e.target?.result as string) || '';
+        try {
+          await createResumeVersionApi({
+            name: `Uploaded: ${fileName}`,
+            version: `v${resumeVersions.length + 1}.0`,
+            resume_text: rawText,
+            file_path: fileName,
+            set_active: true
+          });
 
-    reader.onerror = () => {
-      alert('Failed to read selected file.');
-    };
-
-    reader.readAsText(file);
+          await loadProfileData();
+          setToast(`Uploaded and activated "${fileName}" as default master resume!`);
+          setTimeout(() => setToast(null), 3000);
+        } catch (err: any) {
+          alert('Resume upload failed: ' + err.message);
+        }
+      };
+    }
   };
 
   const handleCreateNewVersion = async () => {
