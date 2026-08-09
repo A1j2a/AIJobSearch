@@ -550,7 +550,7 @@ body {
   to { transform: rotate(360deg); }
 }
 
-/* Responsive Breakpoints */
+/* Responsive Breakpoints & Phone Responsiveness */
 @media (max-width: 900px) {
   .sidebar {
     position: fixed;
@@ -575,6 +575,79 @@ body {
 
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .top-header {
+    height: auto;
+    min-height: 56px;
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .header-status-group {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .status-indicator {
+    padding: 3px 8px;
+    font-size: 0.7rem;
+  }
+
+  .user-avatar-badge {
+    width: 28px;
+    height: 28px;
+    font-size: 0.75rem;
+  }
+
+  .page-container {
+    padding: 10px;
+  }
+
+  .page-title-section {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .page-title {
+    font-size: 1.15rem;
+  }
+
+  .card {
+    padding: 14px 12px !important;
+  }
+
+  div[style*="gridTemplateColumns"],
+  div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  .tag-container {
+    gap: 6px;
+  }
+
+  .tag {
+    padding: 4px 10px;
+    font-size: 0.78rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .status-indicator {
+    font-size: 0.68rem;
+  }
+
+  .btn {
+    width: 100%;
+    justify-content: center;
   }
 }
 
@@ -622,10 +695,4 @@ body {
   transition: all 0.15s ease;
   margin-right: 8px;
   margin-bottom: 8px;
-}
-
-@media (max-width: 600px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
 }

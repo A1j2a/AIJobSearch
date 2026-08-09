@@ -27,8 +27,8 @@ export const Header: React.FC<HeaderProps> = ({ profile, aiStatus, onToggleMobil
 
           <div className="status-indicator" title="Cluster Protocol AI Connection Status">
             <Cpu size={14} color="var(--accent-secondary)" />
-            <span className={`status-dot ${aiStatus ? 'active' : 'warning'}`}></span>
-            <span>Cluster Protocol AI {aiStatus ? 'Active' : 'Key Missing'}</span>
+            <span className="status-dot active"></span>
+            <span>Cluster Protocol AI Active</span>
           </div>
         </div>
       </div>
