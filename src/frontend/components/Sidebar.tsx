@@ -54,13 +54,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onSelectPage, isOp
 
       <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <div className="brand-logo-badge">
-            <Sparkles size={20} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div className="sidebar-brand-title">
-              Job Finder
-              <span className="brand-pro-tag">AI PRO</span>
+          <div className="sidebar-brand-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <img src="/logo.png" alt="AI Job Search Logo" style={{ height: '44px', width: 'auto', objectFit: 'contain' }} />
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div className="sidebar-brand-title" style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--slate-900)', lineHeight: 1.1 }}>
+                AI Job Search
+              </div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--teal-600)', fontWeight: 700 }}>Find Your Dream Job</span>
             </div>
           </div>
           {onCloseMobile && (

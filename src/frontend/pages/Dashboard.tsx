@@ -158,7 +158,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToJobDetail }) =
 
   const handleQuickApply = async (jobId: number) => {
     try {
-      await updateApplicationStatusApi(jobId, 'APPLIED', 'Applied via AI Job Finder');
+      await updateApplicationStatusApi(jobId, 'APPLIED', 'Applied via AI Job Search');
       setJobs(jobs.map(j => j.id === jobId ? { ...j, application_status: 'APPLIED' } : j));
     } catch (e: any) {
       alert('Status update error: ' + e.message);
