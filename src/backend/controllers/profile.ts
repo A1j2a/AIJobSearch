@@ -34,7 +34,7 @@ export function parseProfileFromResumeText(resumeText: string, resumeTitle?: str
     }
   }
 
-  // Fallback or override if title contains a candidate name (e.g. "Uploaded: Neel Patel (2).pdf")
+  // Fallback or override if title contains a candidate name (e.g. "Uploaded: Candidate Resume.pdf")
   if (resumeTitle) {
     const base = resumeTitle.replace(/^Uploaded:\s*/i, '').replace(/\.[^/.]+$/, '').replace(/[\d()_-]/g, ' ').trim();
     const words = base.split(/\s+/).filter(w => w.length > 1 && !['resume', 'cv', 'v1', 'v2', 'v3', 'final', 'updated', 'pdf', 'doc', 'docx'].includes(w.toLowerCase()));

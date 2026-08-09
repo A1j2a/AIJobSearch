@@ -18,21 +18,21 @@ export async function fetchProfile(): Promise<UserProfile> {
   } catch (e) {
     return {
       id: 1,
-      name: 'Neel Patel',
-      primary_role: 'Senior React Native & Mobile Systems Engineer',
-      experience_years: 4.5,
-      experience_text: '4.5+ years professional experience',
-      primary_location: 'Ahmedabad, India',
-      preferred_locations: ['Ahmedabad', 'Remote - India', 'Worldwide'],
-      preferred_roles: ['React Native Developer', 'Senior React Native Developer', 'Mobile Engineer'],
-      core_skills: ['React Native', 'React.js', 'TypeScript', 'JavaScript', 'Redux', 'REST API', 'Firebase', 'Node.js'],
+      name: 'Candidate Profile',
+      primary_role: 'Software Developer',
+      experience_years: 3.0,
+      experience_text: '3+ years professional experience',
+      primary_location: 'Remote, India',
+      preferred_locations: ['Remote', 'India', 'Worldwide'],
+      preferred_roles: ['Software Engineer', 'Full Stack Developer', 'Frontend Developer', 'Backend Engineer'],
+      core_skills: ['React', 'Node.js', 'TypeScript', 'JavaScript', 'REST API', 'SQL'],
       active_resume_id: 1,
       active_resume: {
         id: 1,
-        name: 'Uploaded: Neel Patel (2).pdf',
+        name: 'Master Resume',
         version: 'v1.0',
-        resume_text: `Neel Patel\nSenior React Native & Mobile Systems Engineer\nAhmedabad, Gujarat, India\n\nSenior React Native & Mobile Systems Engineer with 4.5+ years of experience architecting and deploying cross-platform mobile applications. Skilled in React Native, TypeScript, JavaScript, REST APIs, Firebase, and Redux.`,
-        file_path: 'Neel Patel (2).pdf',
+        resume_text: `Candidate Profile\nSoftware Developer\nRemote, India\n\nExperienced Software Developer skilled in building scalable web and mobile applications. Proficient in React, Node.js, TypeScript, JavaScript, REST APIs, and modern databases.`,
+        file_path: null as any,
         is_active: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -66,10 +66,10 @@ export async function fetchResumeVersions(): Promise<ResumeVersion[]> {
     return [
       {
         id: 1,
-        name: 'Uploaded: Neel Patel (2).pdf',
+        name: 'Master Resume',
         version: 'v1.0',
-        resume_text: `Neel Patel\nSenior React Native & Mobile Systems Engineer\nAhmedabad, Gujarat, India\n\nSenior React Native & Mobile Systems Engineer with 4.5+ years of experience architecting and deploying cross-platform mobile applications. Skilled in React Native, TypeScript, JavaScript, REST APIs, Firebase, and Redux.`,
-        file_path: 'Neel Patel (2).pdf',
+        resume_text: `Candidate Profile\nSoftware Developer\nRemote, India\n\nExperienced Software Developer skilled in building scalable web and mobile applications. Proficient in React, Node.js, TypeScript, JavaScript, REST APIs, and modern databases.`,
+        file_path: null as any,
         is_active: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()

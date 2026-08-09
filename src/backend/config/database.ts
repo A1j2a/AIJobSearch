@@ -210,12 +210,12 @@ export async function initDatabase(): Promise<void> {
       `INSERT INTO profile (name, primary_role, experience_years, experience_text, primary_location, preferred_locations, preferred_roles, core_skills)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        'Neel Patel', 'Senior React Native & Mobile Systems Engineer', 4.5,
-        '4.5+ years professional experience',
-        'Ahmedabad, India',
-        JSON.stringify(['Ahmedabad', 'Remote', 'India', 'Worldwide']),
-        JSON.stringify(['React Native Developer', 'Senior React Native Developer', 'Mobile Engineer', 'Frontend Developer']),
-        JSON.stringify(['React Native', 'React.js', 'TypeScript', 'JavaScript', 'Redux', 'REST API', 'Node.js', 'iOS', 'Android'])
+        'Candidate Profile', 'Software Developer', 3.0,
+        '3+ years professional experience',
+        'Remote, India',
+        JSON.stringify(['Remote', 'India', 'Worldwide']),
+        JSON.stringify(['Software Engineer', 'Full Stack Developer', 'Frontend Developer', 'Backend Engineer']),
+        JSON.stringify(['React', 'Node.js', 'TypeScript', 'JavaScript', 'REST API', 'SQL'])
       ]
     );
   }
@@ -223,32 +223,21 @@ export async function initDatabase(): Promise<void> {
   // Seed Resume Version
   const resumeCount = await dbAsync.get('SELECT COUNT(*) as count FROM resume_versions');
   if (!resumeCount || resumeCount.count === 0) {
-    const neelText = `Neel Patel
-Senior React Native & Mobile Systems Engineer
-Ahmedabad, Gujarat, India | neel.patel@example.com | +91 9876543210
+    const candidateText = `Candidate Profile
+Software Developer
+Remote, India
 
 PROFESSIONAL SUMMARY
-Results-driven Senior React Native & Mobile Systems Engineer with 4.5+ years of experience architecting, building, and deploying cross-platform mobile applications for iOS and Android. Specialized in React Native, TypeScript, JavaScript, Redux Toolkit, REST APIs, Firebase, and native iOS/Android modules.
+Experienced Software Developer skilled in building scalable web and mobile applications. Proficient in React, Node.js, TypeScript, JavaScript, REST APIs, and databases.
 
 CORE TECHNICAL SKILLS
-• Frontend & Mobile: React Native, React.js, TypeScript, JavaScript (ES6+), Redux, Zustand, Expo
-• Backend & Cloud: Node.js, Express, REST APIs, Firebase, FCM Push Notifications, GraphQL
-• Mobile Native: Swift, Objective-C, Java, Kotlin, Xcode, Android Studio
-• Tools & Methodologies: Git, GitHub, CI/CD, App Store Connect, Google Play Console
-
-WORK EXPERIENCE
-Senior Mobile Engineer | TechCorp Solutions (2022 - Present)
-• Built high-performance cross-platform mobile apps using React Native & TypeScript used by 100k+ active users.
-• Integrated payment gateways (Stripe, Razorpay) and FCM push notifications.
-• Optimized app load times by 35% through bundle optimization and native memory management.
-
-React Native Developer | Appify Software (2019 - 2022)
-• Developed mobile frontend features, REST API integrations, and offline state management with Redux.
-• Published 5+ production mobile applications on Google Play Store and Apple App Store.`;
+• Languages & Frameworks: React, Node.js, TypeScript, JavaScript, HTML, CSS
+• Backend & Cloud: Express, REST APIs, SQL, PostgreSQL, MongoDB, Cloud Services
+• Tools & Methodologies: Git, GitHub, Docker, CI/CD, Agile`;
 
     await dbAsync.run(
       `INSERT INTO resume_versions (name, version, resume_text, file_path, is_active) VALUES (?, ?, ?, ?, 1)`,
-      ['Uploaded: Neel Patel (2).pdf', 'v1.0', neelText, 'Neel Patel (2).pdf']
+      ['Master Resume', 'v1.0', candidateText, null]
     );
 
     const rRow = await dbAsync.get('SELECT id FROM resume_versions ORDER BY id DESC LIMIT 1');
