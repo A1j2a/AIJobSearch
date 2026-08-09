@@ -32,7 +32,7 @@ async function ensureDbReady(): Promise<void> {
 
 // Middleware: ensure DB is ready before routing
 app.use(async (req: Request, res: Response, next: NextFunction) => {
-  if (req.path === '/api/health') return next();
+  if (req.path === '/api/health' || req.path === '/health') return next();
   try {
     await ensureDbReady();
     next();
@@ -44,17 +44,21 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-app.get('/api/health', (req: Request, res: Response) => {
+const healthHandler = (req: Request, res: Response) => {
   res.json({
     status: 'ok',
     dbReady,
     isVercel: Boolean(process.env.VERCEL || process.env.USE_TURSO),
     timestamp: new Date().toISOString()
   });
-});
+};
 
-// Mount API Routes
+app.get('/api/health', healthHandler);
+app.get('/health', healthHandler);
+
+// Mount API Router on both /api and root to seamlessly match all Vercel rewrites
 app.use('/api', apiRouter);
+app.use('/', apiRouter);
 
 // Global Error Handler
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
