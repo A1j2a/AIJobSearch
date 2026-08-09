@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import { dbAsync } from '../config/database.js';
-import { seedDemoJobs } from '../services/demo-jobs.service.js';
-import { aiProvider } from '../services/ai.service.js';
-import { UserProfile, SearchConfig } from '../../shared/types.js';
+import { dbAsync } from '../config/database';
+import { seedDemoJobs } from '../services/demo-jobs.service';
+import { aiProvider } from '../services/ai.service';
+import { UserProfile, SearchConfig } from '../../shared/types';
 
 export async function getJobs(req: Request, res: Response) {
   try {

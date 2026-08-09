@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import { initDatabase } from '../src/backend/config/database.js';
-import apiRouter from '../src/backend/routes/api.js';
+import { initDatabase } from '../src/backend/config/database';
+import apiRouter from '../src/backend/routes/api';
 
 const app = express();
 

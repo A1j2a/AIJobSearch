@@ -1,6 +1,6 @@
-import { dbAsync } from '../config/database.js';
-import { UserProfile, SearchConfig } from '../../shared/types.js';
-import { scoringService, ScoreBreakdown } from './scoring.service.js';
+import { dbAsync } from '../config/database';
+import { UserProfile, SearchConfig } from '../../shared/types';
+import { scoringService, ScoreBreakdown } from './scoring.service';
 
 export interface AIAnalysisResult {
   matchScore: number;

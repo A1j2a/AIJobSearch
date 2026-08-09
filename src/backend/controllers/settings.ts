@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { dbAsync } from '../config/database.js';
-import { AppSettings, JobSourceInfo } from '../../shared/types.js';
+import { dbAsync } from '../config/database';
+import { AppSettings, JobSourceInfo } from '../../shared/types';
 
 const HARDCODED_CLUSTER_KEY = 'cp_b585d212b386450a88f866049aa19fc0af387b46279719b75c588543e275dede';
 const DEFAULT_API_KEY = (process.env.CLUSTER_API_KEY || '').trim() || HARDCODED_CLUSTER_KEY;

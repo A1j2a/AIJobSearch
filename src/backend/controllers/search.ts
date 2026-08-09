@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { dbAsync } from '../config/database.js';
-import { SearchConfig } from '../../shared/types.js';
+import { dbAsync } from '../config/database';
+import { SearchConfig } from '../../shared/types';
 
 export async function getSearchConfig(req: Request, res: Response) {
   try {

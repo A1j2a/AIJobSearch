@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { initDatabase } from './config/database.js';
-import apiRouter from './routes/api.js';
+import { initDatabase } from './config/database';
+import apiRouter from './routes/api';
 
 const app = express();
 const PORT = process.env.PORT || 3001;

@@ -1,4 +1,4 @@
-import { JobSource, SearchQueryParams, RawJobData, NormalizedJobData } from './job-source.interface.js';
+import { JobSource, SearchQueryParams, RawJobData, NormalizedJobData } from './job-source.interface';
 
 export class HackerNewsJobsSource implements JobSource {
   public readonly name = 'hackernews';

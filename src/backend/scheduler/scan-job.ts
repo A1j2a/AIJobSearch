@@ -1,4 +1,4 @@
-import { dbAsync } from '../config/database.js';
+import { dbAsync } from '../config/database';
 
 export async function runScheduledScan(): Promise<{ jobsFound: number; jobsAnalyzed: number }> {
   console.log(`[SCHEDULER] Triggering scheduled job scan at ${new Date().toISOString()}`);

@@ -1,7 +1,7 @@
-import { dbAsync } from '../config/database.js';
-import { generateJobDedupeKey } from '../utils/normalization.js';
-import { aiProvider } from './ai.service.js';
-import { UserProfile, SearchConfig } from '../../shared/types.js';
+import { dbAsync } from '../config/database';
+import { generateJobDedupeKey } from '../utils/normalization';
+import { aiProvider } from './ai.service';
+import { UserProfile, SearchConfig } from '../../shared/types';
 
 export const REALISTIC_DEMO_JOBS = [
   {

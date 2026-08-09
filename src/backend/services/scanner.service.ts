@@ -1,18 +1,18 @@
-import { dbAsync } from '../config/database.js';
-import { PublicRemotiveSource } from '../sources/remotive-source.js';
-import { GreenhousePublicSource } from '../sources/greenhouse-source.js';
-import { JobicyPublicSource } from '../sources/jobicy-source.js';
-import { WeWorkRemotelyPublicSource } from '../sources/weworkremotely-source.js';
-import { RemoteOKPublicSource } from '../sources/remoteok-source.js';
-import { IndiaLocalPublicSource } from '../sources/india-local-source.js';
-import { LinkedInPublicSource } from '../sources/linkedin-source.js';
-import { NaukriPublicSource } from '../sources/naukri-source.js';
-import { ArbeitnowPublicSource } from '../sources/arbeitnow-source.js';
-import { HackerNewsJobsSource } from '../sources/hackernews-source.js';
-import { GlobalJobsPublicSource } from '../sources/global-jobs-source.js';
-import { JobSource } from '../sources/job-source.interface.js';
-import { aiProvider } from './ai.service.js';
-import { UserProfile, SearchConfig } from '../../shared/types.js';
+import { dbAsync } from '../config/database';
+import { PublicRemotiveSource } from '../sources/remotive-source';
+import { GreenhousePublicSource } from '../sources/greenhouse-source';
+import { JobicyPublicSource } from '../sources/jobicy-source';
+import { WeWorkRemotelyPublicSource } from '../sources/weworkremotely-source';
+import { RemoteOKPublicSource } from '../sources/remoteok-source';
+import { IndiaLocalPublicSource } from '../sources/india-local-source';
+import { LinkedInPublicSource } from '../sources/linkedin-source';
+import { NaukriPublicSource } from '../sources/naukri-source';
+import { ArbeitnowPublicSource } from '../sources/arbeitnow-source';
+import { HackerNewsJobsSource } from '../sources/hackernews-source';
+import { GlobalJobsPublicSource } from '../sources/global-jobs-source';
+import { JobSource } from '../sources/job-source.interface';
+import { aiProvider } from './ai.service';
+import { UserProfile, SearchConfig } from '../../shared/types';
 
 export interface ScanProgressStatus {
   status: 'IDLE' | 'RUNNING' | 'COMPLETED' | 'FAILED';

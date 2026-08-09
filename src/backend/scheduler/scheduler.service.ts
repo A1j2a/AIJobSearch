@@ -1,5 +1,5 @@
-import { dbAsync } from '../config/database.js';
-import { runScheduledScan } from './scan-job.js';
+import { dbAsync } from '../config/database';
+import { runScheduledScan } from './scan-job';
 
 class SchedulerService {
   private timer: NodeJS.Timeout | null = null;

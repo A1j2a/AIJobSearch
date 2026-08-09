@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { getProfile, updateProfile, getResumeVersions, selectResumeVersion, createResumeVersion } from '../controllers/profile.js';
-import { getSearchConfig, updateSearchConfig } from '../controllers/search.js';
-import { getSettings, updateSettings, testClusterConnection } from '../controllers/settings.js';
-import { getJobs, getJobById, triggerSeedDemoJobs, analyzeJob, getDashboardStats, getLogs, clearLogs, updateApplicationStatus, getApplications } from '../controllers/jobs.js';
-import { scannerService } from '../services/scanner.service.js';
+import { getProfile, updateProfile, getResumeVersions, selectResumeVersion, createResumeVersion } from '../controllers/profile';
+import { getSearchConfig, updateSearchConfig } from '../controllers/search';
+import { getSettings, updateSettings, testClusterConnection } from '../controllers/settings';
+import { getJobs, getJobById, triggerSeedDemoJobs, analyzeJob, getDashboardStats, getLogs, clearLogs, updateApplicationStatus, getApplications } from '../controllers/jobs';
+import { scannerService } from '../services/scanner.service';
 
 const router = Router();
 

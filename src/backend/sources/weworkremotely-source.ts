@@ -1,5 +1,5 @@
-import { JobSource, SearchQueryParams, RawJobData, NormalizedJobData } from './job-source.interface.js';
-import { normalizeUrl } from '../utils/normalization.js';
+import { JobSource, SearchQueryParams, RawJobData, NormalizedJobData } from './job-source.interface';
+import { normalizeUrl } from '../utils/normalization';
 
 export class WeWorkRemotelyPublicSource implements JobSource {
   public readonly name = 'weworkremotely';

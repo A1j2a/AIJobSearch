@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { dbAsync } from '../config/database.js';
-import { UserProfile, ResumeVersion } from '../../shared/types.js';
+import { dbAsync } from '../config/database';
+import { UserProfile, ResumeVersion } from '../../shared/types';
 import fs from 'fs';
 import path from 'path';
 
