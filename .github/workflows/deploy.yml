@@ -24,14 +24,21 @@ jobs:
       - name: Build Check
         run: npm run build
 
-      - name: Deploy to Vercel
+      - name: Trigger Vercel Deployment via API
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          mkdir -p .vercel
-          echo "{\"projectId\":\"$VERCEL_PROJECT_ID\",\"orgId\":\"$VERCEL_ORG_ID\"}" > .vercel/project.json
-          npx vercel pull --yes --environment=production --scope=$VERCEL_ORG_ID --token=$VERCEL_TOKEN
-          npx vercel build --prod --token=$VERCEL_TOKEN
-          npx vercel deploy --prebuilt --prod --scope=$VERCEL_ORG_ID --token=$VERCEL_TOKEN
+          curl -X POST "https://api.vercel.com/v13/deployments?teamId=$VERCEL_ORG_ID" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"name\": \"job-search-with-ai\",
+              \"gitSource\": {
+                \"type\": \"github\",
+                \"repoId\": \"$(curl -s https://api.github.com/repos/A1j2a/AIJobSearch | python3 -c 'import json,sys; print(json.load(sys.stdin)[\"id\"])')\",
+                \"ref\": \"${{ github.ref_name }}\"
+              },
+              \"target\": \"production\"
+            }" | python3 -c "import json,sys; d=json.load(sys.stdin); print('Deployment URL:', d.get('url',''), 'State:', d.get('readyState', d.get('status','')))"
