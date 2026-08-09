@@ -1,4 +1,4 @@
-import { db } from '../config/database.js';
+import { db, dbAsync } from '../config/database.js';
 import { PublicRemotiveSource } from '../sources/remotive-source.js';
 import { GreenhousePublicSource } from '../sources/greenhouse-source.js';
 import { JobicyPublicSource } from '../sources/jobicy-source.js';
@@ -51,7 +51,7 @@ class ScannerService {
           INSERT INTO logs (component, event, status, message)
           VALUES (?, ?, ?, ?)
         `).run('SCANNER', 'SCAN_STOPPED', 'WARNING', 'Job scan manually stopped by user.');
-      } catch (e) {}
+      } catch (e) { }
 
       return { success: true, message: 'Job scan stopped successfully.' };
     }
@@ -280,7 +280,7 @@ class ScannerService {
 
         this.activeStatus.currentStep = `Searching ${source.displayName}...`;
         console.log(`[SCANNER] Searching source: ${source.displayName}`);
-        
+
         try {
           const raw = await source.searchJobs({
             keywords: searchConfig.keywords,
@@ -357,16 +357,16 @@ class ScannerService {
         // 3. Location & Region Compatibility Check
         const targetLocLower = (searchConfig.location || profile.primary_location || 'worldwide').toLowerCase().trim();
         const isWorldwideScope = targetLocLower === 'worldwide' || targetLocLower === 'all' || targetLocLower === 'global' || targetLocLower === '';
-        
+
         let matchesLocation = false;
         if (isWorldwideScope || searchConfig.remote_allowed || Boolean(raw.remote)) {
           matchesLocation = true;
         } else {
           matchesLocation = locLower.includes(targetLocLower) ||
-                            locLower.includes('remote') ||
-                            locLower.includes('worldwide') ||
-                            locLower.includes('anywhere') ||
-                            prefLocs.some((loc: string) => locLower.includes(loc));
+            locLower.includes('remote') ||
+            locLower.includes('worldwide') ||
+            locLower.includes('anywhere') ||
+            prefLocs.some((loc: string) => locLower.includes(loc));
         }
 
         // Pre-Filter Guard: Must match candidate keywords/skills AND location criteria
@@ -389,7 +389,7 @@ class ScannerService {
              OR (job_url = ? AND job_url != '') 
              OR (title = ? AND company = ?)
         `).get(raw.externalId || '', raw.jobUrl || '', raw.title || '', raw.company || '') as any;
-        
+
         if (existingJob) {
           jobId = Number(existingJob.id);
         } else {

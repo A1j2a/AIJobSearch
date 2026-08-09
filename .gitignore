@@ -16,6 +16,10 @@ build/
 data/*.db
 data/*.db-journal
 data/*.db-wal
+data/*.db-shm
+db
+db-wal
+db-shm
 *.log
 logs/
 

@@ -67,6 +67,10 @@ export const SettingsPage: React.FC = () => {
     setSources(sources.map(s => s.id === id ? { ...s, is_enabled: !s.is_enabled } : s));
   };
 
+  const toggleAllSources = (enable: boolean) => {
+    setSources(sources.map(s => ({ ...s, is_enabled: enable })));
+  };
+
   const modelPresets = [
     {
       id: 'best-model',
@@ -363,47 +367,119 @@ export const SettingsPage: React.FC = () => {
 
       {/* Modular Job Sources Architecture */}
       <div className="card" style={{ marginTop: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-          <Globe size={20} color="var(--accent-primary)" />
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Modular Job Sources Architecture</h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Globe size={20} color="var(--accent-primary)" />
+            <div>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>Modular Job Sources Architecture</h3>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Enable or disable target job aggregators and public feeds</p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => toggleAllSources(true)}
+              style={{ fontSize: '0.78rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <CheckCircle2 size={14} color="#10b981" /> Enable All
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => toggleAllSources(false)}
+              style={{ fontSize: '0.78rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <AlertTriangle size={14} color="#ef4444" /> Disable All
+            </button>
+          </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
-          {sources.map(s => (
-            <div
-              key={s.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--bg-page)',
-                border: '1px solid var(--border-subtle)'
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{s.display_name}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{s.status}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '14px' }}>
+          {sources.map(s => {
+            const isRestricted = s.status?.toLowerCase().includes('restricted') || s.status?.toLowerCase().includes('manual');
+            return (
+              <div
+                key={s.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '14px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--bg-page)',
+                  border: s.is_enabled ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid var(--border-subtle)',
+                  boxShadow: s.is_enabled ? '0 2px 8px rgba(99, 102, 241, 0.08)' : 'none',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ flex: 1, paddingRight: '12px' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.92rem', color: 'var(--text-primary)', marginBottom: '4px' }}>
+                    {s.display_name}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: '7px',
+                        height: '7px',
+                        borderRadius: '50%',
+                        backgroundColor: s.is_enabled ? '#10b981' : '#6b7280'
+                      }}
+                    />
+                    <span style={{ fontSize: '0.75rem', color: s.is_enabled ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                      {s.is_enabled ? (isRestricted ? 'Active (Restricted)' : 'Active Public Feed') : 'Disabled'}
+                    </span>
+                  </div>
+                </div>
+
+                <label
+                  style={{
+                    position: 'relative',
+                    display: 'inline-block',
+                    width: '46px',
+                    height: '24px',
+                    cursor: 'pointer',
+                    flexShrink: 0
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={s.is_enabled}
+                    onChange={() => toggleSource(s.id)}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: s.is_enabled ? 'var(--accent-primary)' : '#4b5563',
+                      borderRadius: '24px',
+                      transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: 'absolute',
+                        height: '18px',
+                        width: '18px',
+                        left: s.is_enabled ? '24px' : '3px',
+                        bottom: '3px',
+                        backgroundColor: '#ffffff',
+                        borderRadius: '50%',
+                        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.25)'
+                      }}
+                    />
+                  </span>
+                </label>
               </div>
-              <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '40px', height: '22px' }}>
-                <input
-                  type="checkbox"
-                  checked={s.is_enabled}
-                  onChange={() => toggleSource(s.id)}
-                  style={{ opacity: 0, width: 0, height: 0 }}
-                />
-                <span style={{
-                  position: 'absolute',
-                  cursor: 'pointer',
-                  top: 0, left: 0, right: 0, bottom: 0,
-                  backgroundColor: s.is_enabled ? 'var(--accent-primary)' : 'var(--border-subtle)',
-                  borderRadius: '22px',
-                  transition: '0.3s'
-                }} />
-              </label>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

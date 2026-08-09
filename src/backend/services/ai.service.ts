@@ -1,4 +1,4 @@
-import { db } from '../config/database.js';
+import { dbAsync } from '../config/database.js';
 import { UserProfile, SearchConfig } from '../../shared/types.js';
 import { scoringService, ScoreBreakdown } from './scoring.service.js';
 
@@ -45,9 +45,9 @@ export class ClusterProtocolProvider implements AIProvider {
     searchConfig: SearchConfig,
     resumeText: string
   ): Promise<AIAnalysisResult> {
-    const urlRow = db.prepare("SELECT value FROM settings WHERE key = 'cluster_api_url'").get() as any;
-    const apiKeyRow = db.prepare("SELECT value FROM settings WHERE key = 'cluster_api_key'").get() as any;
-    const modelRow = db.prepare("SELECT value FROM settings WHERE key = 'cluster_model'").get() as any;
+    const urlRow = await dbAsync.get("SELECT value FROM settings WHERE key = 'cluster_api_url'") as any;
+    const apiKeyRow = await dbAsync.get("SELECT value FROM settings WHERE key = 'cluster_api_key'") as any;
+    const modelRow = await dbAsync.get("SELECT value FROM settings WHERE key = 'cluster_model'") as any;
 
     const HARDCODED_CLUSTER_KEY = 'cp_b585d212b386450a88f866049aa19fc0af387b46279719b75c588543e275dede';
     const clusterApiUrl = urlRow?.value || process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1';

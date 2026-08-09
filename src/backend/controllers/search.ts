@@ -1,27 +1,17 @@
 import { Request, Response } from 'express';
-import { db } from '../config/database.js';
+import { dbAsync } from '../config/database.js';
 import { SearchConfig } from '../../shared/types.js';
 
-export function getSearchConfig(req: Request, res: Response) {
+export async function getSearchConfig(req: Request, res: Response) {
   try {
-    let row = db.prepare('SELECT * FROM search_configs ORDER BY id ASC LIMIT 1').get() as any;
+    let row = await dbAsync.get('SELECT * FROM search_configs ORDER BY id ASC LIMIT 1') as any;
     if (!row) {
-      db.prepare(`
-        INSERT INTO search_configs (
-          keywords, location, min_experience, max_experience, remote_allowed,
-          job_type, posted_within, min_match_score
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        JSON.stringify(['React Native Developer', 'Senior React Native Developer', 'Mobile Engineer']),
-        'Ahmedabad',
-        2,
-        6,
-        1,
-        'Full Time',
-        '30 days',
-        80
+      await dbAsync.run(
+        `INSERT INTO search_configs (keywords, location, min_experience, max_experience, remote_allowed, job_type, posted_within, min_match_score)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [JSON.stringify(['React Native Developer', 'Senior React Native Developer', 'Mobile Engineer']), 'Ahmedabad', 2, 6, 1, 'Full Time', '30 days', 80]
       );
-      row = db.prepare('SELECT * FROM search_configs ORDER BY id ASC LIMIT 1').get() as any;
+      row = await dbAsync.get('SELECT * FROM search_configs ORDER BY id ASC LIMIT 1');
     }
 
     const config: SearchConfig = {
@@ -44,65 +34,27 @@ export function getSearchConfig(req: Request, res: Response) {
   }
 }
 
-export function updateSearchConfig(req: Request, res: Response) {
+export async function updateSearchConfig(req: Request, res: Response) {
   try {
-    const {
-      keywords,
-      location,
-      min_experience,
-      max_experience,
-      remote_allowed,
-      job_type,
-      posted_within,
-      min_match_score
-    } = req.body;
+    const { keywords, location, min_experience, max_experience, remote_allowed, job_type, posted_within, min_match_score } = req.body;
 
-    const existing = db.prepare('SELECT id FROM search_configs ORDER BY id ASC LIMIT 1').get() as any;
+    const existing = await dbAsync.get('SELECT id FROM search_configs ORDER BY id ASC LIMIT 1') as any;
 
     if (!existing) {
-      db.prepare(`
-        INSERT INTO search_configs (
-          keywords, location, min_experience, max_experience, remote_allowed, job_type, posted_within, min_match_score
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        JSON.stringify(keywords || []),
-        location,
-        min_experience,
-        max_experience,
-        remote_allowed ? 1 : 0,
-        job_type,
-        posted_within,
-        min_match_score
+      await dbAsync.run(
+        `INSERT INTO search_configs (keywords, location, min_experience, max_experience, remote_allowed, job_type, posted_within, min_match_score)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [JSON.stringify(keywords || []), location, min_experience, max_experience, remote_allowed ? 1 : 0, job_type, posted_within, min_match_score]
       );
     } else {
-      db.prepare(`
-        UPDATE search_configs SET
-          keywords = ?,
-          location = ?,
-          min_experience = ?,
-          max_experience = ?,
-          remote_allowed = ?,
-          job_type = ?,
-          posted_within = ?,
-          min_match_score = ?
-        WHERE id = ?
-      `).run(
-        JSON.stringify(keywords || []),
-        location,
-        min_experience,
-        max_experience,
-        remote_allowed ? 1 : 0,
-        job_type,
-        posted_within,
-        min_match_score,
-        existing.id
+      await dbAsync.run(
+        `UPDATE search_configs SET keywords=?, location=?, min_experience=?, max_experience=?, remote_allowed=?, job_type=?, posted_within=?, min_match_score=? WHERE id=?`,
+        [JSON.stringify(keywords || []), location, min_experience, max_experience, remote_allowed ? 1 : 0, job_type, posted_within, min_match_score, existing.id]
       );
     }
 
-    db.prepare(`
-      INSERT INTO logs (component, event, status, message)
-      VALUES (?, ?, ?, ?)
-    `).run('SEARCH_CONFIG', 'UPDATE_SEARCH_CONFIG', 'SUCCESS', 'Search parameters updated.');
+    await dbAsync.run(`INSERT INTO logs (component, event, status, message) VALUES (?, ?, ?, ?)`,
+      ['SEARCH_CONFIG', 'UPDATE_SEARCH_CONFIG', 'SUCCESS', 'Search parameters updated.']);
 
     return res.json({ success: true, message: 'Search configuration updated successfully' });
   } catch (error: any) {

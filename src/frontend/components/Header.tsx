@@ -35,14 +35,14 @@ export const Header: React.FC<HeaderProps> = ({ profile, aiStatus, onToggleMobil
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
         <div className="user-avatar-badge">
-          {profile?.name ? profile.name.charAt(0).toUpperCase() : 'A'}
+          {profile?.name ? profile.name.charAt(0).toUpperCase() : 'C'}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.2 }}>
-            {profile?.name || 'Ajay Patidar'}
+            {profile?.name || 'Candidate Profile'}
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            {profile?.primary_role || 'React Native Developer'}
+            {profile?.primary_role || 'Software Developer'}
           </div>
         </div>
       </div>

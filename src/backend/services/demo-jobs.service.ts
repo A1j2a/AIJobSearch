@@ -1,4 +1,4 @@
-import { db } from '../config/database.js';
+import { dbAsync } from '../config/database.js';
 import { generateJobDedupeKey } from '../utils/normalization.js';
 import { aiProvider } from './ai.service.js';
 import { UserProfile, SearchConfig } from '../../shared/types.js';
@@ -102,10 +102,9 @@ export async function seedDemoJobs(): Promise<{ added: number; skipped: number }
   let added = 0;
   let skipped = 0;
 
-  // Fetch candidate profile & search config for hybrid AI matching
-  const pRow = db.prepare('SELECT * FROM profile ORDER BY id ASC LIMIT 1').get() as any;
-  const rRow = db.prepare('SELECT * FROM resume_versions WHERE is_active = 1 LIMIT 1').get() as any;
-  const sRow = db.prepare('SELECT * FROM search_configs ORDER BY id ASC LIMIT 1').get() as any;
+  const pRow = await dbAsync.get('SELECT * FROM profile ORDER BY id ASC LIMIT 1') as any;
+  const rRow = await dbAsync.get('SELECT * FROM resume_versions WHERE is_active = 1 LIMIT 1') as any;
+  const sRow = await dbAsync.get('SELECT * FROM search_configs ORDER BY id ASC LIMIT 1') as any;
 
   if (!pRow || !sRow) {
     console.error('[DEMO] Missing profile or search config');
@@ -127,77 +126,38 @@ export async function seedDemoJobs(): Promise<{ added: number; skipped: number }
 
   const resumeText = rRow ? rRow.resume_text : '';
 
-  const insertJob = db.prepare(`
-    INSERT OR IGNORE INTO jobs (
-      source, external_id, title, company, location, remote, salary_min, salary_max,
-      salary_currency, experience_min, experience_max, employment_type, description,
-      job_url, company_url, posted_date, is_demo
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-  `);
-
-  const insertAnalysis = db.prepare(`
-    INSERT OR REPLACE INTO job_analysis (
-      job_id, match_score, role_score, skills_score, experience_score, location_score,
-      employment_type_score, salary_score, seniority_score, other_score,
-      matching_skills, missing_skills, required_skills, nice_to_have_skills,
-      ai_summary, recommendation
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
   for (const rawJob of REALISTIC_DEMO_JOBS) {
-    const res = insertJob.run(
-      rawJob.source,
-      rawJob.externalId,
-      rawJob.title,
-      rawJob.company,
-      rawJob.location,
-      rawJob.remote ? 1 : 0,
-      rawJob.salaryMin,
-      rawJob.salaryMax,
-      rawJob.salaryCurrency,
-      rawJob.experienceMin,
-      rawJob.experienceMax,
-      rawJob.employmentType,
-      rawJob.description,
-      rawJob.jobUrl,
-      rawJob.companyUrl,
-      rawJob.postedDate
-    );
+    try {
+      await dbAsync.run(
+        `INSERT OR IGNORE INTO jobs (source, external_id, title, company, location, remote, salary_min, salary_max, salary_currency, experience_min, experience_max, employment_type, description, job_url, company_url, posted_date, is_demo)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        [rawJob.source, rawJob.externalId, rawJob.title, rawJob.company, rawJob.location, rawJob.remote ? 1 : 0, rawJob.salaryMin, rawJob.salaryMax, rawJob.salaryCurrency, rawJob.experienceMin, rawJob.experienceMax, rawJob.employmentType, rawJob.description, rawJob.jobUrl, rawJob.companyUrl, rawJob.postedDate]
+      );
 
-    if (res.changes > 0) {
+      const insertedRow = await dbAsync.get('SELECT id FROM jobs WHERE source = ? AND external_id = ?', [rawJob.source, rawJob.externalId]) as any;
+      if (!insertedRow) { skipped++; continue; }
+
+      const existingAnalysis = await dbAsync.get('SELECT id FROM job_analysis WHERE job_id = ?', [insertedRow.id]) as any;
+      if (existingAnalysis) { skipped++; continue; }
+
       added++;
-      const jobId = Number(res.lastInsertRowid);
-
-      // Perform AI Analysis & Hybrid Deterministic Scoring
+      const jobId = insertedRow.id;
       const analysis = await aiProvider.analyzeJob(rawJob, profile, searchConfig, resumeText);
 
-      insertAnalysis.run(
-        jobId,
-        analysis.matchScore,
-        analysis.scoreBreakdown?.roleScore || 0,
-        analysis.scoreBreakdown?.skillsScore || 0,
-        analysis.scoreBreakdown?.experienceScore || 0,
-        analysis.scoreBreakdown?.locationScore || 0,
-        analysis.scoreBreakdown?.employmentTypeScore || 0,
-        analysis.scoreBreakdown?.salaryScore || 0,
-        analysis.scoreBreakdown?.seniorityScore || 0,
-        analysis.scoreBreakdown?.otherScore || 0,
-        JSON.stringify(analysis.matchingSkills),
-        JSON.stringify(analysis.missingSkills),
-        JSON.stringify(analysis.requiredSkills),
-        JSON.stringify(analysis.niceToHaveSkills),
-        analysis.reason,
-        analysis.recommendation
+      await dbAsync.run(
+        `INSERT OR REPLACE INTO job_analysis (job_id, match_score, role_score, skills_score, experience_score, location_score, employment_type_score, salary_score, seniority_score, other_score, matching_skills, missing_skills, required_skills, nice_to_have_skills, ai_summary, recommendation)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [jobId, analysis.matchScore, analysis.scoreBreakdown?.roleScore || 0, analysis.scoreBreakdown?.skillsScore || 0, analysis.scoreBreakdown?.experienceScore || 0, analysis.scoreBreakdown?.locationScore || 0, analysis.scoreBreakdown?.employmentTypeScore || 0, analysis.scoreBreakdown?.salaryScore || 0, analysis.scoreBreakdown?.seniorityScore || 0, analysis.scoreBreakdown?.otherScore || 0, JSON.stringify(analysis.matchingSkills), JSON.stringify(analysis.missingSkills), JSON.stringify(analysis.requiredSkills), JSON.stringify(analysis.niceToHaveSkills), analysis.reason, analysis.recommendation]
       );
-    } else {
+    } catch (err: any) {
+      console.error('[DEMO] Error seeding job:', rawJob.title, err.message);
       skipped++;
     }
   }
 
-  db.prepare(`
-    INSERT INTO logs (component, event, status, message)
-    VALUES (?, ?, ?, ?)
-  `).run('JOBS', 'SEED_DEMO_JOBS', 'SUCCESS', `Seeded ${added} realistic demo jobs. ${skipped} duplicates skipped.`);
+  await dbAsync.run(`INSERT INTO logs (component, event, status, message) VALUES (?, ?, ?, ?)`,
+    ['JOBS', 'SEED_DEMO_JOBS', 'SUCCESS', `Seeded ${added} realistic demo jobs. ${skipped} duplicates skipped.`]);
 
   return { added, skipped };
 }
+
