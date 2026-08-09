@@ -32,7 +32,7 @@ async function ensureDbReady(): Promise<void> {
 
 // Middleware: ensure DB is ready before routing
 app.use(async (req: Request, res: Response, next: NextFunction) => {
-  if (req.path === '/api/health' || req.path === '/health') return next();
+  if (req.path.includes('/health')) return next();
   try {
     await ensureDbReady();
     next();
@@ -56,9 +56,8 @@ const healthHandler = (req: Request, res: Response) => {
 app.get('/api/health', healthHandler);
 app.get('/health', healthHandler);
 
-// Mount API Router on both /api and root to seamlessly match all Vercel rewrites
-app.use('/api', apiRouter);
-app.use('/', apiRouter);
+// Mount API Router directly
+app.use(apiRouter);
 
 // Global Error Handler
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {

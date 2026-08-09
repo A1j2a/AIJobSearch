@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { getProfile, updateProfile, getResumeVersions, selectResumeVersion, createResumeVersion } from '../controllers/profile';
 import { getSearchConfig, updateSearchConfig } from '../controllers/search';
 import { getSettings, updateSettings, testClusterConnection } from '../controllers/settings';
@@ -7,56 +7,78 @@ import { scannerService } from '../services/scanner.service';
 
 const router = Router();
 
+// Helper to register routes on both root path and /api prefix
+function addGet(path: string, handler: any) {
+  router.get(path, handler);
+  router.get('/api' + path, handler);
+}
+function addPost(path: string, handler: any) {
+  router.post(path, handler);
+  router.post('/api' + path, handler);
+}
+function addPut(path: string, handler: any) {
+  router.put(path, handler);
+  router.put('/api' + path, handler);
+}
+function addDelete(path: string, handler: any) {
+  router.delete(path, handler);
+  router.delete('/api' + path, handler);
+}
+
 // Profile & Resume Versioning endpoints
-router.get(['/profile', '/api/profile'], getProfile);
-router.put(['/profile', '/api/profile'], updateProfile);
-router.get(['/resumes', '/api/resumes'], getResumeVersions);
-router.post(['/resumes/select', '/api/resumes/select'], selectResumeVersion);
-router.post(['/resumes/create', '/api/resumes/create'], createResumeVersion);
+addGet('/profile', getProfile);
+addPut('/profile', updateProfile);
+addGet('/resumes', getResumeVersions);
+addPost('/resumes/select', selectResumeVersion);
+addPost('/resumes/create', createResumeVersion);
 
 // Search configuration endpoints
-router.get(['/search-config', '/api/search-config'], getSearchConfig);
-router.put(['/search-config', '/api/search-config'], updateSearchConfig);
+addGet('/search-config', getSearchConfig);
+addPut('/search-config', updateSearchConfig);
 
 // Settings endpoints
-router.get(['/settings', '/api/settings'], getSettings);
-router.put(['/settings', '/api/settings'], updateSettings);
-router.post(['/settings/test-cluster', '/api/settings/test-cluster'], testClusterConnection);
+addGet('/settings', getSettings);
+addPut('/settings', updateSettings);
+addPost('/settings/test-cluster', testClusterConnection);
 
 // Job & Dashboard endpoints
-router.get(['/jobs', '/api/jobs'], getJobs);
-router.post(['/jobs/seed-demo', '/api/jobs/seed-demo'], triggerSeedDemoJobs);
-router.get(['/jobs/:id', '/api/jobs/:id'], getJobById);
-router.post(['/jobs/:id/analyze', '/api/jobs/:id/analyze'], analyzeJob);
-router.get(['/dashboard/stats', '/api/dashboard/stats'], getDashboardStats);
+addGet('/jobs', getJobs);
+addPost('/jobs/seed-demo', triggerSeedDemoJobs);
+addGet('/jobs/:id', getJobById);
+addPost('/jobs/:id/analyze', analyzeJob);
+addGet('/dashboard/stats', getDashboardStats);
 
 // Application Tracker Board endpoints
-router.get(['/applications', '/api/applications'], getApplications);
-router.post(['/applications/update', '/api/applications/update'], updateApplicationStatus);
+addGet('/applications', getApplications);
+addPost('/applications/update', updateApplicationStatus);
 
 // Scanner Engine endpoints
-router.post(['/scanner/start', '/api/scanner/start'], (req, res) => {
+const startScannerHandler = (req: Request, res: Response) => {
   scannerService.executeRealJobScan().catch(err => console.error('[SCANNER_BG_ERR]', err));
   res.json({ success: true, message: 'Real job scan launched in background.' });
-});
+};
+addPost('/scanner/start', startScannerHandler);
 
-router.post(['/scanner/stop', '/api/scanner/stop'], async (req, res) => {
+const stopScannerHandler = async (req: Request, res: Response) => {
   const result = await scannerService.stopScan();
   res.json(result);
-});
+};
+addPost('/scanner/stop', stopScannerHandler);
 
-router.post(['/scanner/reanalyze', '/api/scanner/reanalyze'], (req, res) => {
+const reanalyzeHandler = (req: Request, res: Response) => {
   scannerService.reanalyzeAllJobs().catch(err => console.error('[REANALYZE_BG_ERR]', err));
   res.json({ success: true, message: 'Re-analysis of all jobs launched in background.' });
-});
+};
+addPost('/scanner/reanalyze', reanalyzeHandler);
 
-router.get(['/scanner/status', '/api/scanner/status'], async (req, res) => {
+const scannerStatusHandler = async (req: Request, res: Response) => {
   const status = await scannerService.getStatus();
   res.json(status);
-});
+};
+addGet('/scanner/status', scannerStatusHandler);
 
 // System Logs endpoints
-router.get(['/logs', '/api/logs'], getLogs);
-router.delete(['/logs', '/api/logs'], clearLogs);
+addGet('/logs', getLogs);
+addDelete('/logs', clearLogs);
 
 export default router;
