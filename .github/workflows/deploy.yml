@@ -30,7 +30,6 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          rm -rf .vercel
-          npx vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+          npx vercel link --yes --project=job-search-with-ai --token=$VERCEL_TOKEN
           npx vercel build --prod --token=$VERCEL_TOKEN
           npx vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
