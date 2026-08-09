@@ -11,9 +11,12 @@ import path from 'path';
 import fs from 'fs';
 import { createClient, Client } from '@libsql/client';
 
-// ─── Environment Detection ───────────────────────────────────────────────────
-const TURSO_URL = process.env.TURSO_DATABASE_URL || 'libsql://jobsearchwithai-ajpatidar.aws-ap-south-1.turso.io';
-const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODYyNzM5NjQsImlkIjoiMDE5ZmU2MzktODEwMS03ZGMwLTkyMDQtODU2NDg0ODk0NTFiIiwia2lkIjoiQUt2ZFl6V1JyN0JvWk1rT3FsV1FhVGZMaVMtR1V6M25tN1hqemVRYkhmTSIsInJpZCI6IjM1YzdjYjgzLWRjNGYtNDcyNS1hYjhkLTIwYWE5NjhhMjcyOSJ9.t01F47t7FziCu8GhBzwd5IPgrmK1dcMr5CK-2GdR2TnlBN3vq1ei_8d2SQRvlYyLqt6yGS-0lRJCgkv4gyOYAg';
+let rawTursoUrl = (process.env.TURSO_DATABASE_URL || '').trim() || 'https://jobsearchwithai-ajpatidar.aws-ap-south-1.turso.io';
+if (rawTursoUrl.startsWith('libsql://')) {
+  rawTursoUrl = rawTursoUrl.replace('libsql://', 'https://');
+}
+const TURSO_URL = rawTursoUrl;
+const TURSO_TOKEN = (process.env.TURSO_AUTH_TOKEN || '').trim() || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODYyNzM5NjQsImlkIjoiMDE5ZmU2MzktODEwMS03ZGMwLTkyMDQtODU2NDg0ODk0NTFiIiwia2lkIjoiQUt2ZFl6V1JyN0JvWk1rT3FsV1FhVGZMaVMtR1V6M25tN1hqemVRYkhmTSIsInJpZCI6IjM1YzdjYjgzLWRjNGYtNDcyNS1hYjhkLTIwYWE5NjhhMjcyOSJ9.t01F47t7FziCu8GhBzwd5IPgrmK1dcMr5CK-2GdR2TnlBN3vq1ei_8d2SQRvlYyLqt6yGS-0lRJCgkv4gyOYAg';
 
 const isVercel = Boolean(process.env.VERCEL || process.env.USE_TURSO);
 
