@@ -29,10 +29,10 @@ export const SettingsPage: React.FC = () => {
       const data = await fetchSettings();
       setSettings(data.settings);
       setSources(data.job_sources);
-      await checkCluster(data.settings.cluster_api_url, data.settings.cluster_api_key);
+      setLoading(false);
+      checkCluster(data.settings.cluster_api_url, data.settings.cluster_api_key);
     } catch (err) {
       console.error('Error loading settings:', err);
-    } finally {
       setLoading(false);
     }
   };
