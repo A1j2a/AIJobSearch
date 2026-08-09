@@ -2,7 +2,8 @@ import { Request, Response } from 'express';
 import { db } from '../config/database.js';
 import { AppSettings, JobSourceInfo } from '../../shared/types.js';
 
-const DEFAULT_API_KEY = process.env.CLUSTER_API_KEY || '';
+const HARDCODED_CLUSTER_KEY = 'cp_b585d212b386450a88f866049aa19fc0af387b46279719b75c588543e275dede';
+const DEFAULT_API_KEY = (process.env.CLUSTER_API_KEY || '').trim() || HARDCODED_CLUSTER_KEY;
 
 export function getSettings(req: Request, res: Response) {
   try {
@@ -16,7 +17,7 @@ export function getSettings(req: Request, res: Response) {
 
     const settings: AppSettings = {
       cluster_api_url: (kvMap['cluster_api_url'] || process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1').trim(),
-      cluster_api_key: (kvMap['cluster_api_key'] || '').trim() || (process.env.CLUSTER_API_KEY || '').trim(),
+      cluster_api_key: (kvMap['cluster_api_key'] || '').trim() || DEFAULT_API_KEY,
       cluster_model: kvMap['cluster_model'] || 'best-model',
       cluster_temperature: parseFloat(kvMap['cluster_temperature'] || '0.2'),
       cluster_max_tokens: parseInt(kvMap['cluster_max_tokens'] || '2048', 10),
@@ -100,12 +101,12 @@ export async function testClusterConnection(req: Request, res: Response) {
     const dbKey = (keyRow?.value || '').trim();
     const envKey = (process.env.CLUSTER_API_KEY || '').trim();
 
-    const apiKey = bodyKey || dbKey || envKey;
+    const apiKey = bodyKey || dbKey || envKey || HARDCODED_CLUSTER_KEY;
 
     // Auto update database setting row if DB key was empty
-    if (!dbKey && envKey) {
+    if (!dbKey) {
       try {
-        db.prepare("UPDATE settings SET value = ? WHERE key = 'cluster_api_key'").run(envKey);
+        db.prepare("UPDATE settings SET value = ? WHERE key = 'cluster_api_key'").run(apiKey);
       } catch (e) {}
     }
 

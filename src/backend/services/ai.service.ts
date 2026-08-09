@@ -49,8 +49,9 @@ export class ClusterProtocolProvider implements AIProvider {
     const apiKeyRow = db.prepare("SELECT value FROM settings WHERE key = 'cluster_api_key'").get() as any;
     const modelRow = db.prepare("SELECT value FROM settings WHERE key = 'cluster_model'").get() as any;
 
+    const HARDCODED_CLUSTER_KEY = 'cp_b585d212b386450a88f866049aa19fc0af387b46279719b75c588543e275dede';
     const clusterApiUrl = urlRow?.value || process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1';
-    const clusterApiKey = (apiKeyRow?.value || '').trim() || (process.env.CLUSTER_API_KEY || '').trim();
+    const clusterApiKey = (apiKeyRow?.value || '').trim() || (process.env.CLUSTER_API_KEY || '').trim() || HARDCODED_CLUSTER_KEY;
     const rawModel = modelRow?.value || 'best-model';
 
     // Map model selection to full model identifier if preset
