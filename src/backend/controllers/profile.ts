@@ -102,10 +102,22 @@ export async function syncProfileWithResume(resumeText: string, activeResumeId: 
     const minExp = Math.max(0, Math.floor(parsed.experience_years) - 1);
     const maxExp = Math.max(minExp + 2, Math.floor(parsed.experience_years) + 2);
 
-    await dbAsync.run(
-      `UPDATE search_configs SET keywords=?, location=?, min_experience=?, max_experience=? WHERE id=(SELECT id FROM search_configs ORDER BY id ASC LIMIT 1)`,
-      [JSON.stringify(searchKeywords), targetLoc, minExp, maxExp]
-    );
+    try {
+      const scRow = await dbAsync.get('SELECT id FROM search_configs ORDER BY id ASC LIMIT 1') as any;
+      if (scRow && scRow.id) {
+        await dbAsync.run(
+          `UPDATE search_configs SET keywords=?, location=?, min_experience=?, max_experience=? WHERE id=?`,
+          [JSON.stringify(searchKeywords), targetLoc, minExp, maxExp, scRow.id]
+        );
+      } else {
+        await dbAsync.run(
+          `INSERT INTO search_configs (keywords, location, min_experience, max_experience) VALUES (?, ?, ?, ?)`,
+          [JSON.stringify(searchKeywords), targetLoc, minExp, maxExp]
+        );
+      }
+    } catch (scErr: any) {
+      console.warn('[PROFILE_SYNC] Warning updating search_configs:', scErr.message);
+    }
   } catch (err: any) {
     console.error('[PROFILE_SYNC] Error syncing profile from resume:', err.message);
   }
