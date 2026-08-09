@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Local AI-powered Job Search & Matching Application",
-  "main": "dist/backend/index.js",
   "scripts": {
     "dev": "concurrently -k -p \"[{name}]\" -c \"blue.bold,magenta.bold\" \"npm:dev:backend\" \"npm:dev:frontend\"",
     "dev:backend": "tsx watch src/backend/index.ts",
