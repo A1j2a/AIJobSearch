@@ -34,15 +34,17 @@ function getTursoClient(): Client {
 }
 
 function getNativeDb(): any {
+  if (isVercel) return null;
   if (!nativeDb) {
     try {
-      const dynamicRequire = eval('require');
-      const Database = dynamicRequire('libsql');
-      const dataDir = path.resolve(process.cwd(), 'data');
-      if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-      const dbPath = path.resolve(dataDir, 'jobsearch.db');
-      nativeDb = new Database(dbPath);
-      try { nativeDb.pragma('journal_mode = WAL'); } catch {}
+      if (typeof require !== 'undefined') {
+        const Database = require('libsql');
+        const dataDir = path.resolve(process.cwd(), 'data');
+        if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+        const dbPath = path.resolve(dataDir, 'jobsearch.db');
+        nativeDb = new Database(dbPath);
+        try { nativeDb.pragma('journal_mode = WAL'); } catch {}
+      }
     } catch (e: any) {
       console.warn('[DB] Native libsql not available, falling back to Turso HTTP client:', e.message);
     }
