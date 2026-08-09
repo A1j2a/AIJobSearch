@@ -1,6 +1,7 @@
 {
   "name": "ai-job-search",
   "version": "1.0.0",
+  "type": "module",
   "description": "Local AI-powered Job Search & Matching Application",
   "main": "dist/backend/index.js",
   "scripts": {
@@ -13,6 +14,8 @@
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "better-sqlite3": "^11.8.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
