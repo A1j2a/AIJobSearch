@@ -84,11 +84,11 @@ export async function saveSettings(settings: AppSettings, job_sources: JobSource
   return res.json();
 }
 
-export async function testOllama(url?: string): Promise<{ available: boolean; models: string[]; message: string }> {
-  const res = await fetch('/api/settings/test-ollama', {
+export async function testClusterConnection(url?: string, apiKey?: string): Promise<{ available: boolean; models: string[]; message: string }> {
+  const res = await fetch('/api/settings/test-cluster', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url })
+    body: JSON.stringify({ url, apiKey })
   });
   return res.json();
 }

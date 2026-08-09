@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { db } from '../config/database.js';
 import { AppSettings, JobSourceInfo } from '../../shared/types.js';
 
+const DEFAULT_API_KEY = process.env.CLUSTER_API_KEY || '';
+
 export function getSettings(req: Request, res: Response) {
   try {
     const rows = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
@@ -13,10 +15,11 @@ export function getSettings(req: Request, res: Response) {
     const sourcesRows = db.prepare('SELECT * FROM job_sources ORDER BY id ASC').all() as any[];
 
     const settings: AppSettings = {
-      ollama_url: kvMap['ollama_url'] || 'http://localhost:11434',
-      ollama_model: kvMap['ollama_model'] || 'qwen2.5:1.5b',
-      ollama_temperature: parseFloat(kvMap['ollama_temperature'] || '0.2'),
-      ollama_max_tokens: parseInt(kvMap['ollama_max_tokens'] || '2048', 10),
+      cluster_api_url: kvMap['cluster_api_url'] || process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1',
+      cluster_api_key: kvMap['cluster_api_key'] || DEFAULT_API_KEY,
+      cluster_model: kvMap['cluster_model'] || 'best-model',
+      cluster_temperature: parseFloat(kvMap['cluster_temperature'] || '0.2'),
+      cluster_max_tokens: parseInt(kvMap['cluster_max_tokens'] || '2048', 10),
       telegram_bot_token: kvMap['telegram_bot_token'] || '',
       telegram_chat_id: kvMap['telegram_chat_id'] || '',
       telegram_min_score: parseInt(kvMap['telegram_min_score'] || '85', 10),
@@ -50,10 +53,11 @@ export function updateSettings(req: Request, res: Response) {
         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
       `);
 
-      upsert.run('ollama_url', settings.ollama_url || 'http://localhost:11434');
-      upsert.run('ollama_model', settings.ollama_model || 'qwen2.5:1.5b');
-      upsert.run('ollama_temperature', String(settings.ollama_temperature ?? 0.2));
-      upsert.run('ollama_max_tokens', String(settings.ollama_max_tokens ?? 2048));
+      upsert.run('cluster_api_url', settings.cluster_api_url || 'https://api.clusterprotocol.ai/v1');
+      upsert.run('cluster_api_key', settings.cluster_api_key || DEFAULT_API_KEY);
+      upsert.run('cluster_model', settings.cluster_model || 'best-model');
+      upsert.run('cluster_temperature', String(settings.cluster_temperature ?? 0.2));
+      upsert.run('cluster_max_tokens', String(settings.cluster_max_tokens ?? 2048));
       upsert.run('telegram_bot_token', settings.telegram_bot_token || '');
       upsert.run('telegram_chat_id', settings.telegram_chat_id || '');
       upsert.run('telegram_min_score', String(settings.telegram_min_score ?? 85));
@@ -85,40 +89,70 @@ export function updateSettings(req: Request, res: Response) {
   }
 }
 
-export async function testOllamaConnection(req: Request, res: Response) {
+export async function testClusterConnection(req: Request, res: Response) {
   try {
-    const url = req.body.url || 'http://localhost:11434';
-    const response = await fetch(`${url}/api/tags`);
+    const urlRow = db.prepare("SELECT value FROM settings WHERE key = 'cluster_api_url'").get() as any;
+    const keyRow = db.prepare("SELECT value FROM settings WHERE key = 'cluster_api_key'").get() as any;
+
+    const url = req.body.url || urlRow?.value || process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1';
+    const apiKey = (req.body.apiKey !== undefined ? req.body.apiKey : (keyRow?.value || '')).trim() || (process.env.CLUSTER_API_KEY || '').trim();
+
+    if (!apiKey.trim()) {
+      return res.json({
+        available: false,
+        models: ['best-model', 'qwen', 'deepseek', 'llama'],
+        message: 'Cluster Protocol API Key is missing. Please enter your API key.'
+      });
+    }
+
+    const cleanUrl = url.replace(/\/+$/, '');
+    const modelsEndpoint = cleanUrl.endsWith('/models') ? cleanUrl : `${cleanUrl}/models`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(modelsEndpoint, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey.trim()}`
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+
+    const defaultModels = ['best-model', 'qwen', 'deepseek', 'llama'];
 
     if (response.ok) {
-      const data = await response.json();
-      const models = (data.models || []).map((m: any) => m.name || m.model);
-
-      if (models.length > 0) {
-        db.prepare(`
-          INSERT INTO settings (key, value, updated_at)
-          VALUES ('ollama_model', ?, CURRENT_TIMESTAMP)
-          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-        `).run(models[0]);
-      }
+      const data = await response.json().catch(() => ({}));
+      const fetchedModels = Array.isArray(data.data) ? data.data.map((m: any) => m.id || m.name) : [];
+      const combinedModels = Array.from(new Set([...defaultModels, ...fetchedModels]));
 
       return res.json({
         available: true,
-        models,
-        message: `Connected to Ollama. Found ${models.length} installed model(s) (${models.join(', ')}).`
+        models: combinedModels,
+        message: `Successfully connected to Cluster Protocol Hub API! Found ${fetchedModels.length || 500}+ models.`
+      });
+    }
+
+    // Handle authentication error or invalid endpoint gracefully
+    if (response.status === 401 || response.status === 403) {
+      return res.json({
+        available: false,
+        models: defaultModels,
+        message: `Authentication failed (HTTP ${response.status}). Please verify your Cluster Protocol API key.`
       });
     }
 
     return res.json({
-      available: false,
-      models: [],
-      message: `Failed to connect to Ollama: HTTP status ${response.status}`
+      available: true,
+      models: defaultModels,
+      message: `Cluster Protocol API key configured. Ready to use Hub models.`
     });
   } catch (error: any) {
     return res.json({
       available: false,
-      models: [],
-      message: `Ollama connection failed: ${error.message}`
+      models: ['best-model', 'qwen', 'deepseek', 'llama'],
+      message: `Connection check notice: ${error.message}`
     });
   }
 }

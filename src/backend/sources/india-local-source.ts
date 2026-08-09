@@ -3,19 +3,20 @@ import { normalizeUrl } from '../utils/normalization.js';
 
 export class IndiaLocalPublicSource implements JobSource {
   public readonly name = 'india_local_jobs';
-  public readonly displayName = 'India & Local Public Jobs';
+  public readonly displayName = 'Global & Regional Public Developer Jobs';
   public readonly isRestricted = false;
 
   public async healthCheck(): Promise<{ ok: boolean; message: string }> {
-    return { ok: true, message: 'India & Local public job source ready.' };
+    return { ok: true, message: 'Global & regional developer public feed ready.' };
   }
 
   public async searchJobs(params: SearchQueryParams): Promise<RawJobData[]> {
     const rawJobs: RawJobData[] = [];
     const keywords = params.keywords.length > 0 ? params.keywords : ['Software Engineer'];
+    const targetLoc = (params.location || '').trim();
 
     try {
-      console.log(`[JOB_SOURCE] Querying real live Jobicy public API for keywords: ${keywords.join(', ')}...`);
+      console.log(`[JOB_SOURCE] Querying real live public Jobicy feed for location: "${targetLoc || 'Worldwide'}"...`);
       
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
@@ -35,7 +36,12 @@ export class IndiaLocalPublicSource implements JobSource {
             const geoLower = (item.jobGeo || '').toLowerCase();
 
             const isRoleMatch = keywords.some(k => titleLower.includes(k.toLowerCase()) || descLower.includes(k.toLowerCase()));
-            const isGeoMatch = !params.location || geoLower.includes(params.location.toLowerCase()) || geoLower.includes('india') || geoLower.includes('anywhere');
+            const isGeoMatch = !targetLoc ||
+                              targetLoc.toLowerCase() === 'worldwide' ||
+                              targetLoc.toLowerCase() === 'all' ||
+                              geoLower.includes(targetLoc.toLowerCase()) ||
+                              geoLower.includes('anywhere') ||
+                              geoLower.includes('remote');
 
             if (isRoleMatch && isGeoMatch) {
               const emailMatch = descLower.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
@@ -45,7 +51,7 @@ export class IndiaLocalPublicSource implements JobSource {
                 externalId: String(item.id || item.jobSlug),
                 title: item.jobTitle || 'Software Engineer',
                 company: item.companyName || 'Technology Company',
-                location: item.jobGeo || 'India',
+                location: item.jobGeo || targetLoc || 'Worldwide',
                 remote: true,
                 employmentType: item.jobType || 'Full Time',
                 description: this.stripHtml(item.jobDescription || ''),
@@ -59,7 +65,7 @@ export class IndiaLocalPublicSource implements JobSource {
         }
       }
     } catch (err: any) {
-      console.warn('[JOB_SOURCE] India public API search warning:', err.message);
+      console.warn('[JOB_SOURCE] Regional job search error:', err.message);
     }
 
     return rawJobs;
@@ -77,11 +83,11 @@ export class IndiaLocalPublicSource implements JobSource {
       company: raw.company.trim(),
       location: raw.location.trim(),
       remote: Boolean(raw.remote),
-      salary_min: raw.salaryMin || null,
-      salary_max: raw.salaryMax || null,
-      salary_currency: raw.salaryCurrency || 'INR',
-      experience_min: raw.experienceMin || null,
-      experience_max: raw.experienceMax || null,
+      salary_min: null,
+      salary_max: null,
+      salary_currency: 'USD',
+      experience_min: null,
+      experience_max: null,
       employment_type: raw.employmentType || 'Full Time',
       description: raw.description,
       job_url: normalizeUrl(raw.jobUrl),

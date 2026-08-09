@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Play, RefreshCw, CheckCircle2, Briefcase, Star, Search, ShieldCheck, UserCheck, Sparkles, Square, Cpu } from 'lucide-react';
-import { ScanStatusResponse, startRealScan, stopRealScan, fetchScanStatus, fetchProfile, fetchSearchConfig, fetchSettings, saveSettings, testOllama } from '../api';
+import { ScanStatusResponse, startRealScan, stopRealScan, fetchScanStatus, fetchProfile, fetchSearchConfig, fetchSettings, saveSettings } from '../api';
 import { UserProfile, SearchConfig, AppSettings } from '../../shared/types';
 
 interface ScannerPageProps {
@@ -11,8 +11,8 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onScanCompleted }) => 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [searchConfig, setSearchConfig] = useState<SearchConfig | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
-  const [availableModels, setAvailableModels] = useState<string[]>(['qwen2.5:1.5b']);
-  const [selectedModel, setSelectedModel] = useState<string>('qwen2.5:1.5b');
+  const [availableModels, setAvailableModels] = useState<string[]>(['best-model', 'qwen', 'deepseek', 'llama']);
+  const [selectedModel, setSelectedModel] = useState<string>('best-model');
   const [modelToast, setModelToast] = useState<string | null>(null);
 
   const [scanStatus, setScanStatus] = useState<ScanStatusResponse & { totalDbJobs?: number; totalDbAnalyzed?: number }>({
@@ -39,13 +39,11 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onScanCompleted }) => 
       setSearchConfig(c);
       if (sData && sData.settings) {
         setAppSettings(sData.settings);
-        setSelectedModel(sData.settings.ollama_model || 'qwen2.5:1.5b');
-        try {
-          const testRes = await testOllama(sData.settings.ollama_url);
-          if (testRes.models && testRes.models.length > 0) {
-            setAvailableModels(testRes.models);
-          }
-        } catch (e) {}
+        const activeM = sData.settings.cluster_model || 'best-model';
+        setSelectedModel(activeM);
+        if (!['best-model', 'qwen', 'deepseek', 'llama'].includes(activeM)) {
+          setAvailableModels(Array.from(new Set(['best-model', 'qwen', 'deepseek', 'llama', activeM])));
+        }
       }
     } catch (e) {
       console.warn('Error loading scanner data:', e);
@@ -55,11 +53,11 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onScanCompleted }) => 
   const handleModelChange = async (newModel: string) => {
     setSelectedModel(newModel);
     if (appSettings) {
-      const updated = { ...appSettings, ollama_model: newModel };
+      const updated = { ...appSettings, cluster_model: newModel };
       setAppSettings(updated);
       try {
         await saveSettings(updated, []);
-        setModelToast(`AI Engine model switched to: ${newModel}`);
+        setModelToast(`Cluster Protocol AI model switched to: ${newModel}`);
         setTimeout(() => setModelToast(null), 3000);
       } catch (e: any) {
         console.warn('Model switch error:', e);
@@ -125,7 +123,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onScanCompleted }) => 
       <div className="page-title-section">
         <div>
           <h1 className="page-title">Real Job Scanner Engine</h1>
-          <p className="page-subtitle">Collect live jobs from supported public sources, normalize, deduplicate, and score with local Ollama AI</p>
+          <p className="page-subtitle">Collect live jobs from supported public sources, normalize, deduplicate, and score with Cluster Protocol AI Engine</p>
         </div>
         {scanning || scanStatus.status === 'RUNNING' ? (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -159,7 +157,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onScanCompleted }) => 
               border: '1px solid var(--border-color)'
             }}>
               <Cpu size={16} color="var(--accent-primary)" />
-              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>AI Engine:</span>
+              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Cluster Model:</span>
               <select
                 value={selectedModel}
                 onChange={(e) => handleModelChange(e.target.value)}
@@ -174,9 +172,13 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onScanCompleted }) => 
                   cursor: 'pointer'
                 }}
               >
-                {availableModels.map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
+                <option value="best-model">🌟 Best Model (Auto-Select)</option>
+                <option value="qwen">⚡ Qwen (Qwen 2.5 72B / Coder)</option>
+                <option value="deepseek">🧠 DeepSeek (DeepSeek R1 / Chat)</option>
+                <option value="llama">🦙 Llama (Llama 3.3 70B)</option>
+                {!['best-model', 'qwen', 'deepseek', 'llama'].includes(selectedModel) && (
+                  <option value={selectedModel}>⚙️ Custom: {selectedModel}</option>
+                )}
               </select>
             </div>
 
@@ -317,7 +319,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onScanCompleted }) => 
           </div>
           <div>
             <div className="stat-value">{scanStatus.totalDbAnalyzed !== undefined ? scanStatus.totalDbAnalyzed : scanStatus.jobsAnalyzed}</div>
-            <div className="stat-label">Jobs Analyzed with Local AI</div>
+            <div className="stat-label">Jobs Analyzed with Cluster AI</div>
           </div>
         </div>
 
@@ -334,15 +336,25 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onScanCompleted }) => 
 
       {/* Supported Sources Disclosure */}
       <div className="card">
-        <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px' }}>Supported Public Job Sources</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: 0 }}>Supported Public Job Sources</h3>
+          <span className="badge badge-info" style={{ fontSize: '0.8rem', padding: '4px 10px' }}>
+            🎯 Active Target: {searchConfig?.location || profile?.primary_location || 'Worldwide'} ({searchConfig?.keywords?.slice(0, 3).join(', ') || 'Software Engineer'})
+          </span>
+        </div>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '14px' }}>
+          All job sources below dynamically execute real-time searches using your saved Search Criteria (Keywords, Target Location, and Remote Filter):
+        </p>
         <ul style={{ paddingLeft: '20px', fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-          <li><strong style={{ color: 'var(--accent-color)' }}>LinkedIn Jobs (India & Global)</strong>: Real live public guest search for India & global software engineering positions</li>
-          <li><strong style={{ color: 'var(--accent-color)' }}>Naukri & Indeed Public Jobs (India)</strong>: Real live developer job postings across Indian tech hubs</li>
-          <li><strong>India & Local Public Jobs</strong>: Live software, mobile, and full-stack positions in India</li>
-          <li><strong>We Work Remotely Public RSS</strong>: Real live remote software, mobile, and front-end engineering jobs</li>
-          <li><strong>Jobicy Public Engineering API</strong>: Real live public software engineering positions</li>
-          <li><strong>Remotive Public Jobs API</strong>: Real live remote software and mobile development postings</li>
-          <li><strong>Greenhouse Public Career Boards</strong>: Live job postings from public company career boards</li>
+          <li><strong style={{ color: 'var(--accent-primary)' }}>LinkedIn Jobs (Guest API)</strong>: Live public search filtered dynamically by candidate role & target location ({searchConfig?.location || 'Worldwide'}).</li>
+          <li><strong style={{ color: 'var(--accent-primary)' }}>Naukri & Indeed Public Feeds</strong>: Live developer postings filtered by candidate keywords & location scope.</li>
+          <li><strong style={{ color: 'var(--accent-primary)' }}>Global & Regional Developer Feeds</strong>: Live engineering openings across worldwide tech markets.</li>
+          <li><strong style={{ color: 'var(--accent-primary)' }}>Greenhouse Career Boards</strong>: Live job postings from public company career pages.</li>
+          <li><strong style={{ color: 'var(--accent-primary)' }}>Arbeitnow Tech Jobs API</strong>: Public API for software, mobile & backend positions.</li>
+          <li><strong style={{ color: 'var(--accent-primary)' }}>HackerNews Who's Hiring</strong>: Live Y Combinator & tech startup openings.</li>
+          <li><strong style={{ color: 'var(--accent-primary)' }}>Global Developer Aggregator</strong>: Worldwide software engineering opportunities.</li>
+          <li><strong style={{ color: 'var(--accent-primary)' }}>We Work Remotely RSS</strong>: Live remote software development positions.</li>
+          <li><strong style={{ color: 'var(--accent-primary)' }}>Jobicy & Remotive APIs</strong>: Curated developer & engineering positions.</li>
         </ul>
       </div>
     </div>

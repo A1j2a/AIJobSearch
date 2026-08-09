@@ -168,7 +168,7 @@ ${candidateLoc}`
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px', marginBottom: '24px' }}>
         <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '24px' }}>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Ollama AI Match Score
+            Cluster Protocol AI Match Score
           </div>
           <div style={{
             width: '84px',
@@ -206,7 +206,7 @@ ${candidateLoc}`
         <div className="card">
           <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px' }}>AI Match Breakdown & Summary</h3>
           <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '16px' }}>
-            {job.ai_summary || 'Local Ollama AI evaluates skills, experience level, location, and master resume alignment.'}
+            {job.ai_summary || 'Cluster Protocol AI evaluates skills, experience level, location, and master resume alignment.'}
           </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>

@@ -11,17 +11,17 @@ import { ScannerPage } from './pages/ScannerPage';
 import { ApplicationsPage } from './pages/ApplicationsPage';
 import { LogsPage } from './pages/LogsPage';
 import { UserProfile } from '../shared/types';
-import { fetchProfile, testOllama } from './api';
+import { fetchProfile, testClusterConnection } from './api';
 
 export const App: React.FC = () => {
   const [activePage, setActivePage] = useState<PageId>('dashboard');
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [ollamaStatus, setOllamaStatus] = useState<boolean>(false);
+  const [clusterAiStatus, setClusterAiStatus] = useState<boolean>(false);
 
   useEffect(() => {
     loadInitialData();
-  }, []);
+  }, [activePage]);
 
   const loadInitialData = async () => {
     try {
@@ -32,10 +32,10 @@ export const App: React.FC = () => {
     }
 
     try {
-      const ollamaRes = await testOllama();
-      setOllamaStatus(ollamaRes.available);
+      const clusterRes = await testClusterConnection();
+      setClusterAiStatus(clusterRes.available);
     } catch (e) {
-      setOllamaStatus(false);
+      setClusterAiStatus(false);
     }
   };
 
@@ -57,7 +57,7 @@ export const App: React.FC = () => {
       <div className="main-content">
         <Header
           profile={profile}
-          ollamaStatus={ollamaStatus}
+          aiStatus={clusterAiStatus}
           onStartScan={handleStartScan}
         />
 

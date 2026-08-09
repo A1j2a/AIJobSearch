@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getProfile, updateProfile, getResumeVersions, selectResumeVersion, createResumeVersion } from '../controllers/profile.js';
 import { getSearchConfig, updateSearchConfig } from '../controllers/search.js';
-import { getSettings, updateSettings, testOllamaConnection } from '../controllers/settings.js';
+import { getSettings, updateSettings, testClusterConnection } from '../controllers/settings.js';
 import { getJobs, getJobById, triggerSeedDemoJobs, analyzeJob, getDashboardStats, getLogs, clearLogs, updateApplicationStatus, getApplications } from '../controllers/jobs.js';
 import { scannerService } from '../services/scanner.service.js';
 
@@ -21,7 +21,7 @@ router.put('/search-config', updateSearchConfig);
 // Settings endpoints
 router.get('/settings', getSettings);
 router.put('/settings', updateSettings);
-router.post('/settings/test-ollama', testOllamaConnection);
+router.post('/settings/test-cluster', testClusterConnection);
 
 // Job & Dashboard endpoints
 router.get('/jobs', getJobs);

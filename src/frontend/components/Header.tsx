@@ -4,11 +4,11 @@ import { UserProfile } from '../../shared/types';
 
 interface HeaderProps {
   profile: UserProfile | null;
-  ollamaStatus: boolean;
+  aiStatus: boolean;
   onStartScan?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ profile, ollamaStatus }) => {
+export const Header: React.FC<HeaderProps> = ({ profile, aiStatus }) => {
   return (
     <header className="top-header">
       <div className="header-status-group">
@@ -18,10 +18,10 @@ export const Header: React.FC<HeaderProps> = ({ profile, ollamaStatus }) => {
           <span>SQLite Local DB</span>
         </div>
 
-        <div className="status-indicator" title="Local AI (Ollama) Connection Status">
+        <div className="status-indicator" title="Cluster Protocol AI Connection Status">
           <Cpu size={14} />
-          <span className={`status-dot ${ollamaStatus ? 'active' : 'warning'}`}></span>
-          <span>Ollama AI {ollamaStatus ? 'Connected' : 'Offline'}</span>
+          <span className={`status-dot ${aiStatus ? 'active' : 'warning'}`}></span>
+          <span>Cluster Protocol AI {aiStatus ? 'Active' : 'Key Missing / Offline'}</span>
         </div>
       </div>
 

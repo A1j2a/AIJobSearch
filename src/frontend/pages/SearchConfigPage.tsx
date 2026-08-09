@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { SearchConfig, UserProfile } from '../../shared/types';
 import { fetchSearchConfig, saveSearchConfig, fetchProfile } from '../api';
-import { Save, Plus, X, Search, Sliders, CheckCircle2, Sparkles, UserCheck } from 'lucide-react';
+import { Save, Plus, X, Search, Sliders, CheckCircle2, Sparkles, UserCheck, Globe, MapPin, Flag } from 'lucide-react';
 
 export const SearchConfigPage: React.FC = () => {
   const [config, setConfig] = useState<SearchConfig | null>(null);
@@ -84,6 +84,16 @@ export const SearchConfigPage: React.FC = () => {
     });
   };
 
+  const locationPresets = [
+    { label: '🌎 All / Worldwide (Global Remote)', value: 'Worldwide', scope: 'WORLDWIDE' as const },
+    { label: '🇮🇳 India (Nationwide)', value: 'India', scope: 'COUNTRY' as const },
+    { label: '🇺🇸 United States', value: 'United States', scope: 'COUNTRY' as const },
+    { label: '🇬🇧 United Kingdom', value: 'United Kingdom', scope: 'COUNTRY' as const },
+    { label: '🇨🇦 Canada', value: 'Canada', scope: 'COUNTRY' as const },
+    { label: '🇪🇺 Europe / Remote', value: 'Europe', scope: 'COUNTRY' as const },
+    { label: '🏙️ Custom City (e.g. Ahmedabad)', value: profile?.primary_location?.split(',')[0] || 'Ahmedabad', scope: 'CITY' as const }
+  ];
+
   if (loading || !config) {
     return (
       <div className="page-container">
@@ -97,7 +107,7 @@ export const SearchConfigPage: React.FC = () => {
       <div className="page-title-section">
         <div>
           <h1 className="page-title">Job Search Configuration</h1>
-          <p className="page-subtitle">Configure search queries, experience range filters, and minimum AI match threshold</p>
+          <p className="page-subtitle">Configure search queries, experience range filters, and location scope (Worldwide, Country, or City)</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           {profile && (
@@ -174,26 +184,63 @@ export const SearchConfigPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter Parameters */}
+      {/* Filter Parameters & Location Scope */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
           <Sliders size={20} color="var(--accent-primary)" />
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Search Criteria & Filters</h3>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Location Scope & Search Filters</h3>
+        </div>
+
+        {/* Location Scope Quick Selectors */}
+        <div className="form-group" style={{ marginBottom: '20px' }}>
+          <label className="form-label" style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Globe size={16} color="var(--accent-primary)" /> Quick Location Presets & Scope
+          </label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+            {locationPresets.map((preset) => {
+              const isSelected = config.location.toLowerCase() === preset.value.toLowerCase() ||
+                (preset.scope === 'WORLDWIDE' && ['worldwide', 'all', 'global', 'remote'].includes(config.location.toLowerCase()));
+              return (
+                <button
+                  type="button"
+                  key={preset.value}
+                  onClick={() => setConfig({ ...config, location: preset.value, location_scope: preset.scope })}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '20px',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border: isSelected ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                    backgroundColor: isSelected ? 'var(--accent-light)' : 'var(--bg-page)',
+                    color: isSelected ? 'var(--accent-primary)' : 'var(--text-primary)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
           <div className="form-group">
-            <label className="form-label">Primary Location</label>
+            <label className="form-label" style={{ fontWeight: 600 }}>Target Search Location</label>
             <input
               type="text"
               className="form-input"
+              placeholder="e.g. Worldwide, India, United States, or Ahmedabad"
               value={config.location}
               onChange={(e) => setConfig({ ...config, location: e.target.value })}
             />
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+              Type <code>Worldwide</code> or <code>All</code> for global search without city restrictions.
+            </div>
           </div>
 
           <div className="form-group">
-            <label className="form-label">Job Type</label>
+            <label className="form-label" style={{ fontWeight: 600 }}>Job Type Filter</label>
             <select
               className="form-select"
               value={config.job_type}
@@ -254,7 +301,7 @@ export const SearchConfigPage: React.FC = () => {
                 onChange={(e) => setConfig({ ...config, remote_allowed: e.target.checked })}
                 style={{ width: '18px', height: '18px' }}
               />
-              <span style={{ fontSize: '0.9rem' }}>Include Remote - India / Remote jobs</span>
+              <span style={{ fontSize: '0.9rem' }}>Include Remote - India / Remote Global jobs</span>
             </label>
           </div>
 

@@ -332,11 +332,13 @@ CORE TECHNICAL SKILLS:
   }
 
   // Seed Default Settings
+  const userApiKey = process.env.CLUSTER_API_KEY || '';
   const defaultSettingsMap: Record<string, string> = {
-    ollama_url: 'http://localhost:11434',
-    ollama_model: 'qwen2.5:1.5b',
-    ollama_temperature: '0.2',
-    ollama_max_tokens: '2048',
+    cluster_api_url: process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1',
+    cluster_api_key: userApiKey,
+    cluster_model: 'best-model',
+    cluster_temperature: '0.2',
+    cluster_max_tokens: '2048',
     telegram_bot_token: '',
     telegram_chat_id: '',
     telegram_min_score: '85',
@@ -344,24 +346,36 @@ CORE TECHNICAL SKILLS:
     scheduler_interval: '180'
   };
 
-  const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
+  const insertSetting = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE settings.value = '' OR settings.value IS NULL");
   for (const [key, value] of Object.entries(defaultSettingsMap)) {
     insertSetting.run(key, value);
   }
 
+  // Force sync process.env.CLUSTER_API_KEY to DB if DB row is currently empty
+  const envKey = (process.env.CLUSTER_API_KEY || '').trim();
+  if (envKey) {
+    db.prepare("UPDATE settings SET value = ? WHERE key = 'cluster_api_key' AND (value = '' OR value IS NULL)").run(envKey);
+  }
+
+  // Delete legacy Ollama settings from DB if present
+  db.exec("DELETE FROM settings WHERE key LIKE 'ollama_%'");
+
   // Seed Job Sources
   const defaultSources = [
-    { name: 'public_careers', display_name: 'Company Career Pages', is_enabled: 1, status: 'ACTIVE' },
-    { name: 'greenhouse', display_name: 'Greenhouse Public Jobs', is_enabled: 1, status: 'ACTIVE' },
-    { name: 'lever', display_name: 'Lever Public Jobs', is_enabled: 1, status: 'ACTIVE' },
-    { name: 'linkedin', display_name: 'LinkedIn (Public)', is_enabled: 0, status: 'SOURCE_REQUIRES_MANUAL_ACCESS' },
-    { name: 'naukri', display_name: 'Naukri', is_enabled: 0, status: 'SOURCE_REQUIRES_MANUAL_ACCESS' },
-    { name: 'indeed', display_name: 'Indeed', is_enabled: 0, status: 'SOURCE_REQUIRES_MANUAL_ACCESS' },
-    { name: 'wellfound', display_name: 'Wellfound (AngelList)', is_enabled: 0, status: 'SOURCE_REQUIRES_MANUAL_ACCESS' },
-    { name: 'hirist', display_name: 'Hirist', is_enabled: 0, status: 'SOURCE_REQUIRES_MANUAL_ACCESS' }
+    { name: 'linkedin', display_name: 'LinkedIn Jobs (Guest Search)', is_enabled: 1, status: 'ACTIVE' },
+    { name: 'naukri', display_name: 'Naukri & Indeed Public Feeds', is_enabled: 1, status: 'ACTIVE' },
+    { name: 'india_local_jobs', display_name: 'Global & Regional Public Feeds', is_enabled: 1, status: 'ACTIVE' },
+    { name: 'greenhouse', display_name: 'Greenhouse Career Boards', is_enabled: 1, status: 'ACTIVE' },
+    { name: 'arbeitnow', display_name: 'Arbeitnow Tech Jobs', is_enabled: 1, status: 'ACTIVE' },
+    { name: 'hackernews', display_name: 'HackerNews Who\'s Hiring', is_enabled: 1, status: 'ACTIVE' },
+    { name: 'global_jobs', display_name: 'Global Developer Aggregator', is_enabled: 1, status: 'ACTIVE' },
+    { name: 'weworkremotely', display_name: 'We Work Remotely Public RSS', is_enabled: 1, status: 'ACTIVE' },
+    { name: 'jobicy', display_name: 'Jobicy Engineering API', is_enabled: 1, status: 'ACTIVE' },
+    { name: 'remotive', display_name: 'Remotive Developer API', is_enabled: 1, status: 'ACTIVE' },
+    { name: 'public_careers', display_name: 'Company Career Pages', is_enabled: 1, status: 'ACTIVE' }
   ];
 
-  const insertSource = db.prepare('INSERT OR IGNORE INTO job_sources (name, display_name, is_enabled, status) VALUES (?, ?, ?, ?)');
+  const insertSource = db.prepare('INSERT INTO job_sources (name, display_name, is_enabled, status) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET display_name = excluded.display_name, is_enabled = 1');
   for (const s of defaultSources) {
     insertSource.run(s.name, s.display_name, s.is_enabled, s.status);
   }

@@ -29,6 +29,7 @@ export interface SearchConfig {
   id?: number;
   keywords: string[];
   location: string;
+  location_scope?: 'WORLDWIDE' | 'COUNTRY' | 'CITY';
   min_experience: number;
   max_experience: number;
   remote_allowed: boolean;
@@ -39,10 +40,11 @@ export interface SearchConfig {
 }
 
 export interface AppSettings {
-  ollama_url: string;
-  ollama_model: string; // Default: empty string ""
-  ollama_temperature: number;
-  ollama_max_tokens: number;
+  cluster_api_url: string;
+  cluster_api_key: string;
+  cluster_model: string;
+  cluster_temperature: number;
+  cluster_max_tokens: number;
   telegram_bot_token: string;
   telegram_chat_id: string;
   telegram_min_score: number;

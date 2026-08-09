@@ -7,6 +7,9 @@ import { RemoteOKPublicSource } from '../sources/remoteok-source.js';
 import { IndiaLocalPublicSource } from '../sources/india-local-source.js';
 import { LinkedInPublicSource } from '../sources/linkedin-source.js';
 import { NaukriPublicSource } from '../sources/naukri-source.js';
+import { ArbeitnowPublicSource } from '../sources/arbeitnow-source.js';
+import { HackerNewsJobsSource } from '../sources/hackernews-source.js';
+import { GlobalJobsPublicSource } from '../sources/global-jobs-source.js';
 import { JobSource } from '../sources/job-source.interface.js';
 import { aiProvider } from './ai.service.js';
 import { UserProfile, SearchConfig } from '../../shared/types.js';
@@ -58,6 +61,9 @@ class ScannerService {
   private registeredSources: JobSource[] = [
     new LinkedInPublicSource(),
     new NaukriPublicSource(),
+    new ArbeitnowPublicSource(),
+    new HackerNewsJobsSource(),
+    new GlobalJobsPublicSource(),
     new IndiaLocalPublicSource(),
     new PublicRemotiveSource(),
     new GreenhousePublicSource(),
@@ -189,7 +195,7 @@ class ScannerService {
         }
 
         this.activeStatus.status = 'COMPLETED';
-        this.activeStatus.currentStep = `Re-analysis completed! Successfully re-analyzed all ${count} jobs with local Ollama AI.`;
+        this.activeStatus.currentStep = `Re-analysis completed! Successfully re-analyzed all ${count} jobs with Cluster Protocol AI.`;
 
         db.prepare(`
           INSERT INTO logs (component, event, status, message)
@@ -334,48 +340,37 @@ class ScannerService {
         const descLower = (raw.description || '').toLowerCase();
         const locLower = (raw.location || '').toLowerCase();
 
-        // 1. Candidate Role Compatibility Check (Strictly matching candidate specialization)
-        const isMobileCandidate = primaryRoleLower.includes('react native') || primaryRoleLower.includes('mobile') || prefRoles.some((r: string) => r.includes('react native') || r.includes('mobile'));
-        const isBackendCandidate = primaryRoleLower.includes('backend') || prefRoles.some((r: string) => r.includes('backend'));
+        // 1. Role & Keyword Compatibility Check
+        const allTargetTokens = Array.from(new Set([
+          ...searchKeywords,
+          ...prefRoles,
+          ...(primaryRoleLower ? [primaryRoleLower] : []),
+          'react', 'mobile', 'ios', 'android', 'fullstack', 'frontend', 'software', 'developer', 'engineer'
+        ])).filter((k: string) => k.trim().length > 0);
 
-        let matchesRole = false;
-        if (isMobileCandidate) {
-          const isMobileTitle = titleLower.includes('react native') || titleLower.includes('mobile') || titleLower.includes('ios') || titleLower.includes('android') || titleLower.includes('flutter') || titleLower.includes('app developer') || (titleLower.includes('react') && titleLower.includes('developer'));
-          const isIrrelevantRole = titleLower.includes('golang') || titleLower.includes('rust') || titleLower.includes('c++') || titleLower.includes('finance automation') || titleLower.includes('director') || titleLower.includes('graph engine') || titleLower.includes('data layer') || titleLower.includes('legal automation');
-          matchesRole = isMobileTitle && !isIrrelevantRole;
-        } else if (isBackendCandidate) {
-          const isBackendTitle = titleLower.includes('backend') || titleLower.includes('node') || titleLower.includes('python') || titleLower.includes('go') || titleLower.includes('microservices') || titleLower.includes('api') || titleLower.includes('server');
-          const isIrrelevantRole = titleLower.includes('react native') || titleLower.includes('flutter') || titleLower.includes('ios') || titleLower.includes('android') || titleLower.includes('design') || titleLower.includes('copywriter');
-          matchesRole = isBackendTitle && !isIrrelevantRole;
-        } else {
-          matchesRole = prefRoles.some((r: string) => titleLower.includes(r)) || (primaryRoleLower && titleLower.includes(primaryRoleLower));
-        }
+        const matchesKeyword = allTargetTokens.some((kw: string) => titleLower.includes(kw) || descLower.includes(kw));
 
-        // 2. Skills Match Check (Matches at least 2 core skills)
+        // 2. Skills Match Check (Matches candidate skills)
         const matchingSkillCount = candidateSkills.filter((s: string) => titleLower.includes(s) || descLower.includes(s)).length;
-        const matchesSkills = matchingSkillCount >= 2;
+        const matchesSkills = matchingSkillCount >= 1;
 
-        // 3. Location & Region Check matching Target Location & Candidate Profile
-        const targetLocLower = (searchConfig.location || profile.primary_location || 'india').toLowerCase().trim();
-        const isIndiaTarget = targetLocLower.includes('india') || targetLocLower.includes('ahmedabad') || targetLocLower.includes('bengaluru') || targetLocLower.includes('pune') || targetLocLower.includes('mumbai') || targetLocLower.includes('delhi') || targetLocLower.includes('noida') || targetLocLower.includes('gurgaon') || targetLocLower.includes('hyderabad') || targetLocLower.includes('gandhinagar') || targetLocLower.includes('gujarat');
+        // 3. Location & Region Compatibility Check
+        const targetLocLower = (searchConfig.location || profile.primary_location || 'worldwide').toLowerCase().trim();
+        const isWorldwideScope = targetLocLower === 'worldwide' || targetLocLower === 'all' || targetLocLower === 'global' || targetLocLower === '';
         
-        const isIndiaOrOpenJob = locLower.includes('india') || locLower.includes('ahmedabad') || locLower.includes('bengaluru') || locLower.includes('pune') || locLower.includes('mumbai') || locLower.includes('delhi') || locLower.includes('noida') || locLower.includes('gurgaon') || locLower.includes('hyderabad') || locLower.includes('gandhinagar') || locLower.includes('gujarat') || locLower.includes('worldwide') || locLower.includes('anywhere') || locLower.includes('remote');
-
-        const isForeignOnsiteOnly = (locLower.includes('usa') || locLower.includes('united states') || locLower.includes('uk') || locLower.includes('london') || locLower.includes('germany') || locLower.includes('europe')) &&
-                                    !locLower.includes('india') && !locLower.includes('worldwide') && !locLower.includes('anywhere');
-
         let matchesLocation = false;
-        if (isIndiaTarget) {
-          matchesLocation = isIndiaOrOpenJob && !isForeignOnsiteOnly;
-        } else if (searchConfig.remote_allowed) {
-          matchesLocation = !isForeignOnsiteOnly;
+        if (isWorldwideScope || searchConfig.remote_allowed || Boolean(raw.remote)) {
+          matchesLocation = true;
         } else {
-          matchesLocation = (targetCity && locLower.includes(targetCity)) ||
-                            prefLocs.some((loc: string) => loc !== 'remote' && locLower.includes(loc));
+          matchesLocation = locLower.includes(targetLocLower) ||
+                            locLower.includes('remote') ||
+                            locLower.includes('worldwide') ||
+                            locLower.includes('anywhere') ||
+                            prefLocs.some((loc: string) => locLower.includes(loc));
         }
 
-        // Pre-Filter Guard: Must match candidate target role/skills AND location criteria
-        const passesPreFilter = (matchesRole || matchesSkills) && matchesLocation;
+        // Pre-Filter Guard: Must match candidate keywords/skills AND location criteria
+        const passesPreFilter = (matchesKeyword || matchesSkills) && matchesLocation;
 
         if (!passesPreFilter) {
           filteredOutCount++;

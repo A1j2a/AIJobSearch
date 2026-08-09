@@ -28,8 +28,16 @@ export interface AIProvider {
   ): Promise<AIAnalysisResult>;
 }
 
-export class OllamaProvider implements AIProvider {
-  public name = 'OllamaProvider';
+// Preset mapping for Cluster Protocol models
+export const CLUSTER_MODEL_MAP: Record<string, string> = {
+  'best-model': 'qwen-2.5-coder-32b-instruct',
+  'qwen': 'qwen-2.5-coder-32b-instruct',
+  'deepseek': 'qwen-2.5-coder-32b-instruct',
+  'llama': 'llama-3.3-70b-instruct'
+};
+
+export class ClusterProtocolProvider implements AIProvider {
+  public name = 'ClusterProtocolProvider';
 
   public async analyzeJob(
     job: { title: string; company: string; location: string; description: string; salaryMin?: number; remote?: boolean },
@@ -37,56 +45,44 @@ export class OllamaProvider implements AIProvider {
     searchConfig: SearchConfig,
     resumeText: string
   ): Promise<AIAnalysisResult> {
-    const urlRow = db.prepare("SELECT value FROM settings WHERE key = 'ollama_url'").get() as any;
-    const modelRow = db.prepare("SELECT value FROM settings WHERE key = 'ollama_model'").get() as any;
+    const urlRow = db.prepare("SELECT value FROM settings WHERE key = 'cluster_api_url'").get() as any;
+    const apiKeyRow = db.prepare("SELECT value FROM settings WHERE key = 'cluster_api_key'").get() as any;
+    const modelRow = db.prepare("SELECT value FROM settings WHERE key = 'cluster_model'").get() as any;
 
-    const ollamaUrl = urlRow?.value || 'http://localhost:11434';
-    let ollamaModel = modelRow?.value || '';
+    const clusterApiUrl = urlRow?.value || process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1';
+    const clusterApiKey = (apiKeyRow?.value || '').trim() || (process.env.CLUSTER_API_KEY || '').trim();
+    const rawModel = modelRow?.value || 'best-model';
 
-    // Auto-discover model if not explicitly set in database
-    if (!ollamaModel) {
-      try {
-        const tagsRes = await fetch(`${ollamaUrl}/api/tags`);
-        if (tagsRes.ok) {
-          const tagsData = await tagsRes.json();
-          if (tagsData.models && tagsData.models.length > 0) {
-            ollamaModel = tagsData.models[0].name || tagsData.models[0].model;
-            db.prepare("INSERT INTO settings (key, value) VALUES ('ollama_model', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(ollamaModel);
-            console.log(`[AI] Auto-detected installed Ollama model: ${ollamaModel}`);
-          }
-        }
-      } catch (err: any) {
-        console.warn('[AI] Could not auto-detect Ollama models:', err.message);
-      }
-    }
+    // Map model selection to full model identifier if preset
+    const targetModel = CLUSTER_MODEL_MAP[rawModel.toLowerCase()] || rawModel;
 
-    // If no model selected or Ollama offline, use deterministic fallback analysis
-    if (!ollamaModel) {
-      console.log('[AI] No Ollama model selected in settings. Using deterministic rule fallback analysis.');
+    // Check if API key is configured
+    if (!clusterApiKey) {
+      console.log('[AI] No Cluster Protocol API key configured. Using deterministic rule-based analysis.');
       return this.fallbackDeterministicAnalysis(job, profile, searchConfig);
     }
 
     const prompt = this.buildPrompt(job, profile, searchConfig, resumeText);
 
     try {
-      const responseText = await this.callOllamaApi(ollamaUrl, ollamaModel, prompt);
+      const responseText = await this.callClusterApi(clusterApiUrl, clusterApiKey, targetModel, prompt);
       let parsed = this.tryParseJson(responseText);
 
       // Retry with correction prompt if JSON validation failed
       if (!parsed) {
-        console.warn('[AI] Invalid JSON from Ollama. Retrying with correction prompt...');
-        const correctionPrompt = `CRITICAL FIX: Your previous response was not valid JSON. You MUST reply ONLY with a valid JSON object matching this schema, with NO markdown formatting, NO extra text:\n{\n  "roleMatchPercentage": 90,\n  "isMobileRole": true,\n  "extractedRequiredSkills": ["React Native", "TypeScript"],\n  "extractedNiceToHaveSkills": ["Jest"],\n  "aiSummary": "Brief reasoning"\n}\n\nOriginal prompt output to format as raw JSON:\n${responseText}`;
+        console.warn('[AI] Invalid JSON from Cluster Protocol AI. Retrying with correction prompt...');
+        const correctionPrompt = `CRITICAL FIX: Your previous response was not valid JSON. You MUST reply ONLY with a valid JSON object matching this schema, with NO markdown formatting, NO extra text:\n{\n  "roleMatchPercentage": 90,\n  "isMobileRole": true,\n  "extractedRequiredSkills": ["React Native", "TypeScript"],\n  "extractedNiceToHaveSkills": ["Jest"],\n  "aiSummary": "Brief reasoning"\n}\n\nOriginal output to re-format:\n${responseText}`;
 
-        const correctedText = await this.callOllamaApi(ollamaUrl, ollamaModel, correctionPrompt);
+        const correctedText = await this.callClusterApi(clusterApiUrl, clusterApiKey, targetModel, correctionPrompt);
         parsed = this.tryParseJson(correctedText);
       }
 
       if (!parsed) {
-        console.warn('[AI] Ollama JSON parsing failed after retry. Falling back to deterministic scoring.');
+        console.warn('[AI] Cluster Protocol JSON parsing failed after retry. Falling back to deterministic scoring.');
         return this.fallbackDeterministicAnalysis(job, profile, searchConfig);
       }
 
-      // Compute hybrid deterministic score using Ollama semantic outputs
+      // Compute hybrid deterministic score using AI semantic outputs
       const scoreBreakdown = scoringService.calculateHybridScore(
         {
           ...job,
@@ -99,7 +95,7 @@ export class OllamaProvider implements AIProvider {
           extractedRequiredSkills: Array.isArray(parsed.extractedRequiredSkills) ? parsed.extractedRequiredSkills : [],
           extractedNiceToHaveSkills: Array.isArray(parsed.extractedNiceToHaveSkills) ? parsed.extractedNiceToHaveSkills : [],
           isMobileRole: parsed.isMobileRole ?? true,
-          aiSummary: parsed.aiSummary || 'Analyzed via Ollama local AI'
+          aiSummary: parsed.aiSummary || `Analyzed via Cluster Protocol AI (${rawModel})`
         }
       );
 
@@ -119,7 +115,7 @@ export class OllamaProvider implements AIProvider {
         scoreBreakdown
       };
     } catch (error: any) {
-      console.error('[AI] Ollama AI analysis error:', error.message);
+      console.error('[AI] Cluster Protocol API error:', error.message);
       return this.fallbackDeterministicAnalysis(job, profile, searchConfig);
     }
   }
@@ -170,30 +166,42 @@ Return ONLY a valid JSON object matching exact structure:
 }`;
   }
 
-  private async callOllamaApi(url: string, model: string, prompt: string): Promise<string> {
+  private async callClusterApi(baseUrl: string, apiKey: string, model: string, prompt: string): Promise<string> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), 60000);
+
+    const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
+    const endpoint = cleanBaseUrl.endsWith('/chat/completions') 
+      ? cleanBaseUrl 
+      : `${cleanBaseUrl}/chat/completions`;
 
     try {
-      const response = await fetch(`${url}/api/generate`, {
+      const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey.trim()}`
+        },
         body: JSON.stringify({
           model,
-          prompt,
-          stream: false,
-          format: 'json'
+          messages: [
+            { role: 'system', content: 'You are an expert AI software recruiter. You reply ONLY in raw valid JSON without markdown code fences.' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.2,
+          max_tokens: 2048
         }),
         signal: controller.signal
       });
       clearTimeout(timeout);
 
       if (!response.ok) {
-        throw new Error(`Ollama returned status ${response.status}`);
+        const errText = await response.text().catch(() => '');
+        throw new Error(`Cluster Protocol API returned HTTP status ${response.status}: ${errText.slice(0, 150)}`);
       }
 
       const data = await response.json();
-      return data.response || '';
+      return data.choices?.[0]?.message?.content || data.response || '';
     } catch (err: any) {
       clearTimeout(timeout);
       throw err;
@@ -202,7 +210,6 @@ Return ONLY a valid JSON object matching exact structure:
 
   private tryParseJson(text: string): any {
     try {
-      // Clean markdown code fence wrappers ```json ... ```
       let cleaned = text.trim();
       if (cleaned.startsWith('```')) {
         cleaned = cleaned.replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '');
@@ -276,4 +283,4 @@ Return ONLY a valid JSON object matching exact structure:
   }
 }
 
-export const aiProvider = new OllamaProvider();
+export const aiProvider = new ClusterProtocolProvider();

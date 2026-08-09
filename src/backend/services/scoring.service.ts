@@ -27,7 +27,7 @@ export interface ScoreBreakdown {
 
 export class ScoringService {
   /**
-   * Deterministically calculates final 0-100 score from candidate profile, job details, and Ollama semantic extraction
+   * Deterministically calculates final 0-100 score from candidate profile, job details, and Cluster Protocol AI semantic extraction
    */
   public calculateHybridScore(
     job: {

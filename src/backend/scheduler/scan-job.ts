@@ -8,6 +8,6 @@ export async function runScheduledScan(): Promise<{ jobsFound: number; jobsAnaly
     VALUES (?, ?, ?, ?)
   `).run('SCHEDULER', 'SCAN_RUN', 'INFO', 'Background job scan cycle initiated.');
 
-  // In Phase 4, this will trigger the JobSource aggregator & Ollama analyzer
+  // Trigger the JobSource aggregator & Cluster Protocol AI analyzer
   return { jobsFound: 0, jobsAnalyzed: 0 };
 }
