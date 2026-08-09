@@ -19,10 +19,10 @@ export const Header: React.FC<HeaderProps> = ({ profile, aiStatus, onToggleMobil
         )}
 
         <div className="header-status-group">
-          <div className="status-indicator" title="Local SQLite Database status">
+          <div className="status-indicator" title="Turso Cloud Database Status">
             <Database size={14} color="var(--accent-cyan)" />
             <span className="status-dot active"></span>
-            <span>SQLite DB</span>
+            <span>Turso Cloud DB</span>
           </div>
 
           <div className="status-indicator" title="Cluster Protocol AI Connection Status">
