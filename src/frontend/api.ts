@@ -128,10 +128,8 @@ export async function fetchSearchConfig(): Promise<SearchConfig> {
       min_experience: 2,
       max_experience: 6,
       remote_allowed: true,
-      job_types: ['Full Time'],
-      target_sources: ['linkedin', 'naukri', 'remoteok'],
-      auto_scan: true,
-      scan_interval_hours: 3,
+      job_type: 'Full Time',
+      posted_within: '30 days',
       min_match_score: 75,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -228,11 +226,11 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
     return await res.json();
   } catch (e) {
     return {
-      total_jobs_scanned: 15,
+      new_jobs: 15,
+      jobs_analyzed: 15,
       strong_matches: 8,
-      saved_jobs: 4,
-      applied_jobs: 2,
-      response_rate: 25.0
+      applications: 4,
+      interviews: 2
     };
   }
 }

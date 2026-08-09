@@ -27,6 +27,7 @@ export interface UserProfile {
 
 export interface SearchConfig {
   id?: number;
+  user_id?: number;
   keywords: string[];
   location: string;
   location_scope?: 'WORLDWIDE' | 'COUNTRY' | 'CITY';
@@ -37,6 +38,7 @@ export interface SearchConfig {
   posted_within: string;
   min_match_score: number;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface AppSettings {
