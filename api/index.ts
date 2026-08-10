@@ -23,8 +23,9 @@ const healthHandler = (req: Request, res: Response) => {
 app.get('/api/health', healthHandler);
 app.get('/health', healthHandler);
 
-// Mount API Router directly
-app.use(apiRouter);
+// Mount API Router on both /api prefix and root
+app.use('/api', apiRouter);
+app.use('/', apiRouter);
 
 // 404 Fallback
 app.use((req: Request, res: Response) => {
@@ -37,4 +38,6 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ error: err.message || 'Internal Server Error', details: String(err) });
 });
 
+module.exports = app;
+module.exports.default = app;
 export default app;
