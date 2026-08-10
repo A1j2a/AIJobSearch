@@ -44,17 +44,16 @@ export async function fetchProfile(): Promise<UserProfile> {
 }
 
 export async function saveProfile(profile: UserProfile): Promise<{ success: boolean; message: string }> {
-  try {
-    const res = await fetch('/api/profile', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(profile)
-    });
-    if (!res.ok) throw new Error('Failed to save profile');
-    return await res.json();
-  } catch (e) {
-    return { success: true, message: 'Profile saved successfully!' };
+  const res = await fetch('/api/profile', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(profile)
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => null);
+    throw new Error(errData?.error || 'Failed to save profile');
   }
+  return await res.json();
 }
 
 export async function fetchResumeVersions(): Promise<ResumeVersion[]> {
@@ -79,39 +78,29 @@ export async function fetchResumeVersions(): Promise<ResumeVersion[]> {
 }
 
 export async function selectResumeVersionApi(id: number): Promise<{ success: boolean; message: string }> {
-  try {
-    const res = await fetch('/api/resumes/select', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
-    });
-    if (!res.ok) throw new Error('Failed to select active resume');
-    return await res.json();
-  } catch (e: any) {
-    return { success: true, message: 'Default active resume version set successfully.' };
+  const res = await fetch('/api/resumes/select', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => null);
+    throw new Error(errData?.error || 'Failed to select active resume');
   }
+  return await res.json();
 }
 
 export async function createResumeVersionApi(data: { name: string; version?: string; resume_text: string; file_path?: string; set_active?: boolean }): Promise<{ success: boolean; id: number; message: string }> {
-  try {
-    const res = await fetch('/api/resumes/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => null);
-      if (errData && errData.error) throw new Error(errData.error);
-    }
-    return await res.json();
-  } catch (err: any) {
-    console.warn('[API] Fallback resume creation handling:', err.message);
-    return {
-      success: true,
-      id: Date.now(),
-      message: 'New resume version created and set as active default!'
-    };
+  const res = await fetch('/api/resumes/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => null);
+    throw new Error(errData?.error || errData?.details || `Failed to create resume version (HTTP ${res.status})`);
   }
+  return await res.json();
 }
 
 export async function fetchSearchConfig(): Promise<SearchConfig> {

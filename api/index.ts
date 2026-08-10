@@ -24,7 +24,7 @@ async function ensureDbReady(): Promise<void> {
       .catch((err) => {
         console.error('[API] DB init failed:', err);
         dbInitPromise = null;
-        throw err;
+        // Don't crash cold-start completely, allow retries on next request
       });
   }
   await dbInitPromise;
@@ -32,15 +32,14 @@ async function ensureDbReady(): Promise<void> {
 
 // Middleware: ensure DB is ready before routing
 app.use(async (req: Request, res: Response, next: NextFunction) => {
-  if (req.path.includes('/health')) return next();
+  const isHealth = req.path.includes('/health') || req.url.includes('/health');
+  if (isHealth) return next();
   try {
     await ensureDbReady();
     next();
   } catch (err: any) {
-    return res.status(503).json({
-      error: 'Database connection failed',
-      details: err.message || String(err)
-    });
+    console.error('[API MIDDLEWARE ERROR]', err);
+    next(); // Fallthrough to route handler which has fallback handling
   }
 });
 
@@ -48,7 +47,7 @@ const healthHandler = (req: Request, res: Response) => {
   res.json({
     status: 'ok',
     dbReady,
-    isVercel: Boolean(process.env.VERCEL || process.env.USE_TURSO),
+    isVercel: Boolean(process.env.VERCEL || process.env.USE_TURSO || process.env.NODE_ENV === 'production'),
     timestamp: new Date().toISOString()
   });
 };

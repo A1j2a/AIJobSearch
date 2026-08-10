@@ -72,17 +72,38 @@ class ScannerService {
     new RemoteOKPublicSource()
   ];
 
+  private async saveStatusToDb(): Promise<void> {
+    try {
+      await dbAsync.run(
+        `INSERT INTO settings (key, value, updated_at) VALUES ('scanner_status_json', ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`,
+        [JSON.stringify(this.activeStatus)]
+      );
+    } catch {}
+  }
+
   public async getStatus(): Promise<ScanProgressStatus> {
     try {
+      let savedStatus: ScanProgressStatus | null = null;
+      try {
+        const statusRow = await dbAsync.get("SELECT value FROM settings WHERE key = 'scanner_status_json'") as any;
+        if (statusRow?.value) {
+          savedStatus = JSON.parse(statusRow.value);
+        }
+      } catch {}
+
       const totJobs = await dbAsync.get('SELECT COUNT(*) as c FROM jobs') as any;
       const totAna = await dbAsync.get('SELECT COUNT(*) as c FROM job_analysis') as any;
       const totStrong = await dbAsync.get('SELECT COUNT(*) as c FROM job_analysis WHERE match_score >= 80') as any;
 
+      const baseStatus = (this.activeStatus.status === 'RUNNING' || !savedStatus)
+        ? this.activeStatus
+        : savedStatus;
+
       return {
-        ...this.activeStatus,
+        ...baseStatus,
         totalDbJobs: totJobs?.c || 0,
         totalDbAnalyzed: totAna?.c || 0,
-        strongMatches: this.activeStatus.status === 'RUNNING' ? this.activeStatus.strongMatches : (totStrong?.c || 0)
+        strongMatches: baseStatus.status === 'RUNNING' ? baseStatus.strongMatches : (totStrong?.c || 0)
       };
     } catch (e) {
       return this.activeStatus;
@@ -496,6 +517,7 @@ class ScannerService {
         VALUES (?, ?, ?, ?)
       `, ['SCANNER', 'REAL_SCAN_COMPLETE', 'SUCCESS', `Scan complete. ${addedCount} matching jobs added, ${filteredOutCount} non-matching jobs pre-filtered out, ${duplicateCount} duplicates skipped.`]);
 
+      await this.saveStatusToDb();
       return await this.getStatus();
     } catch (err: any) {
       console.error('[SCANNER] Fatal scan error:', err);
@@ -510,6 +532,7 @@ class ScannerService {
         `, ['SCANNER', 'REAL_SCAN_ERROR', 'ERROR', `Scan failed: ${err.message}`]);
       } catch (e) {}
 
+      await this.saveStatusToDb();
       return await this.getStatus();
     }
   }

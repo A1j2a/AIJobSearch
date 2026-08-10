@@ -18,7 +18,7 @@ if (rawTursoUrl.startsWith('libsql://')) {
 const TURSO_URL = rawTursoUrl;
 const TURSO_TOKEN = (process.env.TURSO_AUTH_TOKEN || '').trim() || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODYyNzM5NjQsImlkIjoiMDE5ZmU2MzktODEwMS03ZGMwLTkyMDQtODU2NDg0ODk0NTFiIiwia2lkIjoiQUt2ZFl6V1JyN0JvWk1rT3FsV1FhVGZMaVMtR1V6M25tN1hqemVRYkhmTSIsInJpZCI6IjM1YzdjYjgzLWRjNGYtNDcyNS1hYjhkLTIwYWE5NjhhMjcyOSJ9.t01F47t7FziCu8GhBzwd5IPgrmK1dcMr5CK-2GdR2TnlBN3vq1ei_8d2SQRvlYyLqt6yGS-0lRJCgkv4gyOYAg';
 
-const isVercel = Boolean(process.env.VERCEL || process.env.USE_TURSO);
+const isVercel = Boolean(process.env.VERCEL || process.env.USE_TURSO || process.env.NODE_ENV === 'production');
 
 let tursoClient: Client | null = null;
 let nativeDb: any = null;
@@ -34,18 +34,18 @@ function getTursoClient(): Client {
 }
 
 function getNativeDb(): any {
-  if (isVercel || process.env.NODE_ENV === 'production') return null;
+  if (isVercel || process.env.NODE_ENV === 'production' || process.env.VERCEL) return null;
   if (!nativeDb) {
     try {
       const dynamicRequire = eval('require');
-      const Database = dynamicRequire('libsql');
+      const Database = dynamicRequire('better-sqlite3');
       const dataDir = path.resolve(process.cwd(), 'data');
       if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
       const dbPath = path.resolve(dataDir, 'jobsearch.db');
       nativeDb = new Database(dbPath);
       try { nativeDb.pragma('journal_mode = WAL'); } catch {}
     } catch (e: any) {
-      console.warn('[DB] Native libsql not available, falling back to Turso HTTP client:', e.message);
+      console.warn('[DB] Native SQLite not available, falling back to Turso HTTP client:', e.message);
     }
   }
   return nativeDb;
@@ -82,6 +82,23 @@ export const dbAsync = {
     } else {
       const db = getNativeDb();
       db.prepare(sql).run(...args);
+    }
+  },
+
+  batch: async (stmts: Array<string | { sql: string; args?: any[] }>): Promise<void> => {
+    if (isVercel || !getNativeDb()) {
+      const client = getTursoClient();
+      const formatted = stmts.map(s => typeof s === 'string' ? { sql: s, args: [] } : { sql: s.sql, args: s.args || [] });
+      await client.batch(formatted as any, 'write');
+    } else {
+      const db = getNativeDb();
+      for (const s of stmts) {
+        if (typeof s === 'string') {
+          db.prepare(s).run();
+        } else {
+          db.prepare(s.sql).run(...(s.args || []));
+        }
+      }
     }
   }
 };
@@ -193,8 +210,10 @@ export async function initDatabase(): Promise<void> {
     )`
   ];
 
-  for (const t of tables) {
-    await dbAsync.run(t);
+  try {
+    await dbAsync.batch(tables);
+  } catch (err: any) {
+    console.warn('[DB] Table batch initialization warning:', err.message);
   }
 
   // Safe ALTER statements
