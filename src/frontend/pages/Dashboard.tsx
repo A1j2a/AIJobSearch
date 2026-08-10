@@ -188,18 +188,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToJobDetail }) =
     <div className="page-container">
       {/* Search Criteria Pill Bar Header */}
       <div className="card" style={{ padding: '12px 16px', marginBottom: '14px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '0.8rem' }}>
-          <span style={{ color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '0.8rem' }}>
+          <span style={{ color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700, marginRight: '4px' }}>
             <Target size={15} /> Active Search Scope:
           </span>
-          <span className="badge badge-primary">
-            <Key size={12} /> Keywords: {(searchConfig?.keywords || profile?.preferred_roles || [profile?.primary_role || 'Software Engineer']).slice(0, 3).join(', ')}
+          {((searchConfig?.keywords && searchConfig.keywords.length > 0) ? searchConfig.keywords : (profile?.primary_role ? [profile.primary_role] : [])).slice(0, 3).map((kw, i) => (
+            <span key={i} className="badge badge-primary" style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <Key size={12} /> {kw}
+            </span>
+          ))}
+          <span className="badge badge-info" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <Globe size={12} /> Location: {searchConfig?.location || profile?.primary_location || 'Worldwide'}
           </span>
-          <span className="badge badge-info">
-            <Globe size={12} /> Location: {searchConfig?.location || profile?.primary_location || 'Worldwide (Global Remote)'}
-          </span>
-          <span className="badge badge-secondary">
-            <FileText size={12} /> Resume: {profile?.name || 'Active Candidate'} (v1.0)
+          <span className="badge badge-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <FileText size={12} /> Resume: {profile?.name || 'Active Candidate'}
           </span>
         </div>
       </div>

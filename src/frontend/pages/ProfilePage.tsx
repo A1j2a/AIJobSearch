@@ -7,6 +7,49 @@ interface ProfilePageProps {
   onProfileUpdated?: (profile: UserProfile) => void;
 }
 
+function sanitizePdfContent(rawText: string): string {
+  if (!rawText) return '';
+  let clean = rawText
+    .replace(/sRGB IEC[0-9.-]+/gi, '')
+    .replace(/http:\/\/www\.color\.org[^\s]*/gi, '')
+    .replace(/Adobe Identity/gi, '')
+    .replace(/DAGh[a-zA-Z0-9,/_-]+/g, '')
+    .replace(/D:[0-9+']+/g, '')
+    .replace(/en-GB/gi, '');
+
+  const tokens = clean.split(/\s+/);
+  const validTokens: string[] = [];
+
+  for (const t of tokens) {
+    if (!t) continue;
+    if (t.length === 1 && !['c', 'r', 'a', 'i', '&', '|', '+'].includes(t.toLowerCase())) {
+      continue;
+    }
+    if (/[\^%\$\{\}\[\]\<\>\~#*]/.test(t) && !t.includes('c++') && !t.includes('c#')) {
+      continue;
+    }
+    validTokens.push(t);
+  }
+
+  let result = validTokens.join(' ');
+
+  const words = result.split(/\s+/);
+  const dedupWords: string[] = [];
+  for (let i = 0; i < words.length; i++) {
+    const curr = words[i];
+    const prev = dedupWords[dedupWords.length - 1];
+    if (prev && curr.toLowerCase() === prev.toLowerCase() && !['react', 'native'].includes(curr.toLowerCase())) {
+      continue;
+    }
+    dedupWords.push(curr);
+  }
+
+  result = dedupWords.join(' ');
+  result = result.replace(/\b([A-Za-z0-9\s.+]{4,30})\s+\1\b/gi, '$1');
+
+  return result.trim();
+}
+
 export const ProfilePage: React.FC<ProfilePageProps> = ({ onProfileUpdated }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [resumeVersions, setResumeVersions] = useState<ResumeVersion[]>([]);
@@ -115,9 +158,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onProfileUpdated }) =>
         }
 
         const candidateName = fileName.replace(/\.[^/.]+$/, '').replace(/[\d()_]/g, ' ').trim();
-        const fullResumeText = extractedText.length > 50
-          ? extractedText
-          : `${candidateName}\nSoftware Developer | Full Stack Engineer\nRemote, India\n\nExperience building web and mobile applications with React, Node.js, TypeScript, JavaScript, REST APIs, and databases.`;
+        const printableText = extractedText.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
+        const cleanedText = sanitizePdfContent(printableText);
+        const fullResumeText = cleanedText.length > 10 && !cleanedText.includes('%PDF-')
+          ? cleanedText
+          : `${candidateName}\n\nUploaded resume file: ${fileName}`;
 
         try {
           await createResumeVersionApi({

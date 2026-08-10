@@ -303,30 +303,32 @@ class ScannerService {
         enabledNames.size === 0 || enabledNames.has(source.name)
       );
 
-      console.log(`[SCANNER] Searching ${activeSourcesToSearch.length} enabled job sources: ${activeSourcesToSearch.map(s => s.name).join(', ')}`);
+      console.log(`[SCANNER] Searching ${activeSourcesToSearch.length} enabled job sources in parallel: ${activeSourcesToSearch.map(s => s.name).join(', ')}`);
 
-      for (const source of activeSourcesToSearch) {
-        if (this.isAbortRequested) {
-          console.log('[SCANNER] Abort requested. Stopping source search...');
-          this.activeStatus.status = 'COMPLETED';
-          this.activeStatus.currentStep = 'Job scan stopped by user.';
-          return await this.getStatus();
-        }
+      const distinctKeywords = Array.from(new Set(searchConfig.keywords || [])).slice(0, 3);
+      this.activeStatus.currentStep = `Querying ${activeSourcesToSearch.length} live job boards concurrently...`;
 
-        this.activeStatus.currentStep = `Searching ${source.displayName}...`;
-        console.log(`[SCANNER] Searching source: ${source.displayName}`);
-
+      const sourcePromises = activeSourcesToSearch.map(async (source) => {
+        if (this.isAbortRequested) return [];
         try {
           const raw = await source.searchJobs({
-            keywords: searchConfig.keywords,
+            keywords: distinctKeywords,
             location: searchConfig.location,
             minExperience: searchConfig.min_experience,
             maxExperience: searchConfig.max_experience,
             remoteAllowed: searchConfig.remote_allowed
           });
-          totalRawJobs = totalRawJobs.concat(raw);
+          return raw || [];
         } catch (e: any) {
-          console.warn(`[SCANNER] Error querying source ${source.displayName}:`, e.message);
+          console.warn(`[SCANNER] Warning querying ${source.displayName}:`, e.message);
+          return [];
+        }
+      });
+
+      const results = await Promise.allSettled(sourcePromises);
+      for (const res of results) {
+        if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+          totalRawJobs = totalRawJobs.concat(res.value);
         }
       }
 

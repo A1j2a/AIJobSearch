@@ -20,69 +20,167 @@ function resolvePdfPath(targetPath: string): string | null {
 }
 
 export function parseProfileFromResumeText(resumeText: string, resumeTitle?: string) {
-  const lines = resumeText.split('\n').map(l => l.trim()).filter(Boolean);
+  const text = resumeText || '';
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
+  // 1. Dynamic Candidate Name Extraction
   let name = 'Candidate Profile';
   for (const line of lines) {
     const isLocationLine = ['india', 'ahmedabad', 'gujar', 'usa', 'street', 'road', 'mumbai', 'bangalore', 'pune', 'delhi', 'hyderabad', 'noida', 'remote'].some(loc => line.toLowerCase().includes(loc));
-    if (!isLocationLine && !line.includes('@') && !line.toLowerCase().includes('http') && line.length < 40 && !line.toUpperCase().includes('RESUME')) {
+    if (!isLocationLine && !line.includes('@') && !line.toLowerCase().includes('http') && line.length < 40 && !line.toUpperCase().includes('RESUME') && !line.toUpperCase().includes('CURRICULUM')) {
       const cleanName = line.replace(/[^a-zA-Z\s.]/g, '').trim();
-      if (cleanName.length > 2 && cleanName.toLowerCase() !== 'candidate profile' && cleanName.toLowerCase() !== 'software developer') {
+      if (cleanName.length > 2 && cleanName.toLowerCase() !== 'candidate profile') {
         name = cleanName;
         break;
       }
     }
   }
 
-  // Fallback or override if title contains a candidate name (e.g. "Uploaded: Candidate Resume.pdf")
-  if (resumeTitle) {
+  if (resumeTitle && (name === 'Candidate Profile' || name.length < 3)) {
     const base = resumeTitle.replace(/^Uploaded:\s*/i, '').replace(/\.[^/.]+$/, '').replace(/[\d()_-]/g, ' ').trim();
     const words = base.split(/\s+/).filter(w => w.length > 1 && !['resume', 'cv', 'v1', 'v2', 'v3', 'final', 'updated', 'pdf', 'doc', 'docx'].includes(w.toLowerCase()));
     if (words.length >= 1) {
-      const derivedName = words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-      if (name === 'Candidate Profile' || derivedName.length > name.length) {
-        name = derivedName;
+      name = words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    }
+  }
+
+  // 2. Dynamic Primary Role Extraction (Concise title matching)
+  let primary_role = '';
+  const roleRegex = /(?:Senior\s+|Junior\s+|Lead\s+|Principal\s+|Staff\s+)?(?:React Native|React|Node\.js|Full Stack|Frontend|Backend|Mobile|Android|iOS|Flutter|Software|Web|Python|Java|DevOps|UI\/UX|Data|Cloud)?\s*(?:Developer|Engineer|Architect|Specialist|Manager|Designer|Analyst|Programmer)/gi;
+  
+  const roleMatches = Array.from(text.matchAll(roleRegex)).map(m => m[0].trim());
+  if (roleMatches.length > 0) {
+    const validRoles = roleMatches.filter(r => r.length >= 5 && r.length <= 35 && !r.toLowerCase().includes('candidate profile') && !r.toLowerCase().includes('experience'));
+    if (validRoles.length > 0) {
+      primary_role = validRoles[0];
+    }
+  }
+
+  if (!primary_role) {
+    const roleKeywords = ['engineer', 'developer', 'architect', 'lead', 'manager', 'designer', 'analyst', 'consultant', 'specialist', 'programmer'];
+    for (let i = 0; i < Math.min(12, lines.length); i++) {
+      const l = lines[i];
+      const lowerL = l.toLowerCase();
+      if (lowerL.includes('candidate profile') || lowerL.includes('work experience') || lowerL.includes('project management')) continue;
+      if (roleKeywords.some(rk => lowerL.includes(rk))) {
+        const parts = l.split(/[|•,\-:]/);
+        for (const part of parts) {
+          const cleanPart = part.replace(/[^a-zA-Z\s]/g, '').trim();
+          if (cleanPart.length > 3 && cleanPart.length <= 35 && roleKeywords.some(rk => cleanPart.toLowerCase().includes(rk))) {
+            primary_role = cleanPart;
+            break;
+          }
+        }
+        if (primary_role) break;
       }
     }
   }
 
-  let primary_role = 'Software Developer';
-  for (let i = 0; i < Math.min(8, lines.length); i++) {
-    const l = lines[i];
-    if (l.toLowerCase().includes('engineer') || l.toLowerCase().includes('developer') || l.toLowerCase().includes('architect') || l.toLowerCase().includes('lead') || l.toLowerCase().includes('manager')) {
-      const parts = l.split(/[|•,\-]/);
-      const cleanRole = parts[0].replace(/[^a-zA-Z\s]/g, '').trim();
-      if (cleanRole.length > 3) {
-        primary_role = cleanRole;
-        break;
-      }
-    }
+  if (!primary_role && resumeTitle) {
+    const titleMatch = resumeTitle.match(/(react native|full stack|frontend|backend|mobile|software)?\s*(developer|engineer|designer|architect|analyst)/i);
+    if (titleMatch) primary_role = titleMatch[0].trim();
   }
 
-  const expMatch = resumeText.match(/(\d+\.?\d*)\+?\s*years?/i);
-  const experience_years = expMatch ? parseFloat(expMatch[1]) : 3.0;
+  if (!primary_role || primary_role.length > 35) {
+    primary_role = 'Software Developer';
+  }
+
+  // 3. Dynamic Experience Extraction
+  const expMatch = text.match(/(\d+\.?\d*)\+?\s*years?/i);
+  const experience_years = expMatch ? parseFloat(expMatch[1]) : 1.0;
   const experience_text = `${experience_years}+ years professional experience`;
 
+  // 4. Dynamic Location Extraction
   const cities = ['Ahmedabad', 'Pune', 'Bangalore', 'Bengaluru', 'Mumbai', 'Delhi', 'Hyderabad', 'Gurgaon', 'Noida', 'Gandhinagar', 'Chennai', 'Kolkata', 'Remote'];
   let primary_location = 'Remote, India';
   for (const city of cities) {
-    if (new RegExp('\\b' + city + '\\b', 'i').test(resumeText)) { primary_location = `${city}, India`; break; }
+    if (new RegExp('\\b' + city + '\\b', 'i').test(text)) {
+      primary_location = `${city}, India`;
+      break;
+    }
   }
 
-  const knownSkills = ['Node.js', 'Express', 'React', 'React Native', 'TypeScript', 'JavaScript', 'Python', 'Go', 'Java', 'C++', 'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'SQLite', 'Supabase', 'Firebase', 'Docker', 'Kubernetes', 'AWS', 'GCP', 'Azure', 'Microservices', 'REST APIs', 'GraphQL', 'CI/CD', 'Git', 'GitHub', 'System Design', 'Kafka', 'RabbitMQ', 'Redux', 'Zustand', 'Expo', 'Laravel', 'Shopify'];
-  const core_skills = knownSkills.filter(s => new RegExp('\\b' + s.replace('+', '\\+') + '\\b', 'i').test(resumeText));
-  if (core_skills.length === 0) core_skills.push('Software Engineering', 'JavaScript', 'TypeScript');
+  // 5. Dynamic Core Skills Extraction (Strictly from candidate's resume)
+  const knownSkills = [
+    'React Native', 'React', 'Node.js', 'Express', 'TypeScript', 'JavaScript', 'Python', 'Django', 'Flask', 'FastAPI',
+    'Java', 'Spring Boot', 'Kotlin', 'Android', 'Swift', 'iOS', 'Flutter', 'Vue', 'Angular', 'Next.js', 'Nuxt', 'Svelte',
+    'C++', 'C#', '.NET', 'Go', 'Rust', 'PHP', 'Laravel', 'Ruby', 'Rails', 'SQL', 'PostgreSQL', 'MySQL', 'MongoDB', 'Redis',
+    'SQLite', 'Supabase', 'Firebase', 'GraphQL', 'REST API', 'REST APIs', 'Docker', 'Kubernetes', 'AWS', 'GCP', 'Azure',
+    'CI/CD', 'Git', 'GitHub', 'System Design', 'Kafka', 'RabbitMQ', 'Redux', 'Zustand', 'Expo', 'HTML', 'CSS', 'Tailwind',
+    'Figma', 'Shopify', 'Async Storage'
+  ];
 
-  const roleParts = primary_role.split(/[|•,\-]/).map(p => p.trim()).filter(Boolean);
-  const preferred_roles = Array.from(new Set([primary_role, ...roleParts, primary_role.includes('Senior') ? primary_role.replace(/Senior/gi, '').trim() : `Senior ${primary_role}`])).filter(Boolean);
+  const core_skills = knownSkills.filter(s => new RegExp('\\b' + s.replace('+', '\\+').replace('.', '\\.') + '\\b', 'i').test(text));
+
+  // Dynamic Section parser for custom skills
+  const sectionRegex = /(?:skills|technologies|tools|competencies|tech stack)[\s:-]+([^\n\r]+)/gi;
+  let sectionMatch;
+  while ((sectionMatch = sectionRegex.exec(text)) !== null) {
+    const rawSkills = sectionMatch[1].split(/[,|•/;\-]/);
+    for (const raw of rawSkills) {
+      const clean = raw.trim().replace(/[^a-zA-Z0-9\s.+]/g, '');
+      if (clean.length > 1 && clean.length < 25 && !core_skills.some(cs => cs.toLowerCase() === clean.toLowerCase())) {
+        core_skills.push(clean);
+      }
+    }
+  }
+
+  const preferred_roles = [primary_role];
   const preferred_locations = Array.from(new Set([primary_location.split(',')[0].trim(), 'Remote - India']));
 
   return { name, primary_role, experience_years, experience_text, primary_location, preferred_locations, preferred_roles, core_skills };
 }
 
+export function cleanPdfTextStream(text: string): string {
+  if (!text) return '';
+
+  let clean = text
+    .replace(/sRGB IEC[0-9.-]+/gi, '')
+    .replace(/http:\/\/www\.color\.org[^\s]*/gi, '')
+    .replace(/Adobe Identity/gi, '')
+    .replace(/DAGh[a-zA-Z0-9,/_-]+/g, '')
+    .replace(/D:[0-9+']+/g, '')
+    .replace(/en-GB/gi, '');
+
+  const tokens = clean.split(/\s+/);
+  const validTokens: string[] = [];
+
+  for (const t of tokens) {
+    if (!t) continue;
+    if (t.length === 1 && !['c', 'r', 'a', 'i', '&', '|', '+'].includes(t.toLowerCase())) {
+      continue;
+    }
+    if (/[\^%\$\{\}\[\]\<\>\~#*]/.test(t) && !t.includes('c++') && !t.includes('c#')) {
+      continue;
+    }
+    validTokens.push(t);
+  }
+
+  let result = validTokens.join(' ');
+
+  const words = result.split(/\s+/);
+  const dedupWords: string[] = [];
+  for (let i = 0; i < words.length; i++) {
+    const curr = words[i];
+    const prev = dedupWords[dedupWords.length - 1];
+    if (prev && curr.toLowerCase() === prev.toLowerCase() && !['react', 'native'].includes(curr.toLowerCase())) {
+      continue;
+    }
+    dedupWords.push(curr);
+  }
+
+  result = dedupWords.join(' ');
+  result = result.replace(/\b([A-Za-z0-9\s.+]{4,30})\s+\1\b/gi, '$1');
+
+  return result.trim();
+}
+
 export async function syncProfileWithResume(resumeText: string, activeResumeId: number, resumeTitle?: string) {
   try {
-    const parsed = parseProfileFromResumeText(resumeText, resumeTitle);
+    let cleanText = cleanPdfTextStream(resumeText || '');
+
+    // Parse profile dynamically strictly from candidate resume text
+    const parsed = parseProfileFromResumeText(cleanText, resumeTitle);
     const existing = await dbAsync.get('SELECT id FROM profile ORDER BY id ASC LIMIT 1') as any;
 
     if (existing) {
@@ -97,7 +195,18 @@ export async function syncProfileWithResume(resumeText: string, activeResumeId: 
       );
     }
 
-    const searchKeywords = Array.from(new Set([...parsed.preferred_roles, parsed.primary_role, `${parsed.primary_role} ${parsed.core_skills[0] || ''}`.trim()])).filter(Boolean);
+    const cleanRole = (parsed.primary_role || '').trim();
+    const roleLower = cleanRole.toLowerCase();
+    const topSkills = (parsed.core_skills || [])
+      .filter(s => typeof s === 'string' && s.length > 1 && !roleLower.includes(s.toLowerCase()))
+      .slice(0, 2);
+
+    const skillCombos = cleanRole ? topSkills.map(skill => `${cleanRole} ${skill}`.trim()) : topSkills;
+    const searchKeywords = Array.from(new Set([
+      ...(cleanRole ? [cleanRole] : []),
+      ...skillCombos
+    ])).filter(k => k.length > 2 && k.length <= 45);
+
     const targetLoc = parsed.primary_location.split(',')[0].trim();
     const minExp = Math.max(0, Math.floor(parsed.experience_years) - 1);
     const maxExp = Math.max(minExp + 2, Math.floor(parsed.experience_years) + 2);
@@ -116,10 +225,10 @@ export async function syncProfileWithResume(resumeText: string, activeResumeId: 
         );
       }
     } catch (scErr: any) {
-      console.warn('[PROFILE_SYNC] Warning updating search_configs:', scErr.message);
+      console.warn('Search config sync warning:', scErr.message);
     }
   } catch (err: any) {
-    console.error('[PROFILE_SYNC] Error syncing profile from resume:', err.message);
+    console.error('syncProfileWithResume error:', err);
   }
 }
 
@@ -146,7 +255,6 @@ export async function getProfile(req: Request, res: Response) {
     if (rRow) {
       activeResume = { id: rRow.id, name: rRow.name, version: rRow.version, resume_text: rRow.resume_text, file_path: rRow.file_path, is_active: Boolean(rRow.is_active), created_at: rRow.created_at, updated_at: rRow.updated_at };
       
-      // Auto-sync profile with active resume text if profile is still default or active resume mismatch
       if (rRow.resume_text && (row.name === 'Candidate Profile' || row.active_resume_id !== rRow.id)) {
         await syncProfileWithResume(rRow.resume_text, rRow.id, rRow.name);
         const updatedRow = await dbAsync.get('SELECT * FROM profile ORDER BY id ASC LIMIT 1') as any;
@@ -175,35 +283,36 @@ export async function getProfile(req: Request, res: Response) {
 export async function updateProfile(req: Request, res: Response) {
   try {
     const { name, primary_role, experience_years, experience_text, primary_location, preferred_locations, preferred_roles, core_skills, resume_text } = req.body;
+
     const existing = await dbAsync.get('SELECT id, active_resume_id FROM profile ORDER BY id ASC LIMIT 1') as any;
     let activeResumeId = existing?.active_resume_id ?? null;
 
-    if (resume_text) {
+    if (resume_text && resume_text.trim()) {
       if (activeResumeId) {
         await dbAsync.run(`UPDATE resume_versions SET resume_text=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`, [resume_text, activeResumeId]);
       } else {
         await dbAsync.run(`INSERT INTO resume_versions (name, version, resume_text, is_active) VALUES (?, ?, ?, 1)`, ['Master Resume', 'v1.0', resume_text]);
         const ins = await dbAsync.get('SELECT id FROM resume_versions ORDER BY id DESC LIMIT 1') as any;
-        activeResumeId = ins?.id ?? null;
+        if (ins) activeResumeId = ins.id;
       }
     }
 
-    if (!existing) {
-      await dbAsync.run(
-        `INSERT INTO profile (name, primary_role, experience_years, experience_text, primary_location, preferred_locations, preferred_roles, core_skills, active_resume_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-        [name, primary_role, experience_years, experience_text, primary_location, JSON.stringify(preferred_locations || []), JSON.stringify(preferred_roles || []), JSON.stringify(core_skills || []), activeResumeId]
-      );
-    } else {
+    if (existing) {
       await dbAsync.run(
         `UPDATE profile SET name=?, primary_role=?, experience_years=?, experience_text=?, primary_location=?, preferred_locations=?, preferred_roles=?, core_skills=?, active_resume_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
         [name, primary_role, experience_years, experience_text, primary_location, JSON.stringify(preferred_locations || []), JSON.stringify(preferred_roles || []), JSON.stringify(core_skills || []), activeResumeId, existing.id]
       );
+    } else {
+      await dbAsync.run(
+        `INSERT INTO profile (name, primary_role, experience_years, experience_text, primary_location, preferred_locations, preferred_roles, core_skills, active_resume_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [name, primary_role, experience_years, experience_text, primary_location, JSON.stringify(preferred_locations || []), JSON.stringify(preferred_roles || []), JSON.stringify(core_skills || []), activeResumeId]
+      );
     }
 
     await dbAsync.run(`INSERT INTO logs (component, event, status, message) VALUES (?, ?, ?, ?)`, ['PROFILE', 'UPDATE_PROFILE', 'SUCCESS', 'User profile & master resume updated.']);
-    return res.json({ success: true, message: 'Profile and master resume updated successfully' });
+    return res.json({ success: true, message: 'Profile & Resume saved successfully' });
   } catch (error: any) {
-    console.error('Error updating profile:', error);
+    console.error('Error saving profile:', error);
     return res.status(500).json({ error: error.message });
   }
 }
@@ -243,7 +352,7 @@ export async function createResumeVersion(req: Request, res: Response) {
     let text = resume_text;
 
     if (!text || text.trim().length === 0 || text.includes('%PDF-')) {
-      text = `Candidate Profile\nSoftware Developer\nRemote, India\n\nProfessional Software Developer with experience building scalable web and mobile applications. Skilled in React, Node.js, TypeScript, JavaScript, REST APIs, and modern databases.`;
+      text = `${resumeName}\n\nUploaded resume document (${file_path || 'file'}).`;
     }
 
     const makeActive = set_active !== false;
@@ -258,7 +367,8 @@ export async function createResumeVersion(req: Request, res: Response) {
 
     if (makeActive && newId) await syncProfileWithResume(text, newId, resumeName);
 
-    return res.json({ success: true, id: newId, message: 'New resume version created and profile synced successfully.' });
+    await dbAsync.run(`INSERT INTO logs (component, event, status, message) VALUES (?, ?, ?, ?)`, ['RESUME', 'CREATE_RESUME_VERSION', 'SUCCESS', `New resume version ${nextVersion} created.`]);
+    return res.json({ success: true, id: newId, message: `Resume version ${nextVersion} uploaded & saved` });
   } catch (error: any) {
     console.error('Error creating resume version:', error);
     return res.status(500).json({ error: error.message });
