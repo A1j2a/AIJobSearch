@@ -58,10 +58,17 @@ app.get('/health', healthHandler);
 // Mount API Router directly
 app.use(apiRouter);
 
+// 404 Fallback
+app.use((req: Request, res: Response) => {
+  res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
+});
+
 // Global Error Handler
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('[API ERROR]', err);
   res.status(500).json({ error: err.message || 'Internal Server Error', details: String(err) });
 });
 
-export default app;
+export default function handler(req: Request, res: Response) {
+  return app(req, res);
+}
