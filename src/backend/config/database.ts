@@ -1,146 +1,90 @@
 /**
- * database.ts - Dual Engine Database Adapter
+ * database.ts - Pure Local SQLite Database Adapter
  * 
- * Production (Vercel): Uses `@libsql/client` (Pure JS HTTP REST Client connected to Turso Cloud).
- * Zero native binary compilation issues in Vercel serverless functions!
- * 
- * Local Development: Uses `libsql` file database (`data/jobsearch.db`).
+ * Uses `better-sqlite3` for local file database (`data/jobsearch.db`).
+ * 100% offline, zero cloud database dependencies (Turso removed).
  */
 
 import path from 'path';
 import fs from 'fs';
-import { createClient, Client } from '@libsql/client';
+import Database from 'better-sqlite3';
 
-let rawTursoUrl = (process.env.TURSO_DATABASE_URL || '').trim() || 'https://jobsearchwithai-ajpatidar.aws-ap-south-1.turso.io';
-if (rawTursoUrl.startsWith('libsql://')) {
-  rawTursoUrl = rawTursoUrl.replace('libsql://', 'https://');
-}
-const TURSO_URL = rawTursoUrl;
-const TURSO_TOKEN = (process.env.TURSO_AUTH_TOKEN || '').trim() || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODYyNzM5NjQsImlkIjoiMDE5ZmU2MzktODEwMS03ZGMwLTkyMDQtODU2NDg0ODk0NTFiIiwia2lkIjoiQUt2ZFl6V1JyN0JvWk1rT3FsV1FhVGZMaVMtR1V6M25tN1hqemVRYkhmTSIsInJpZCI6IjM1YzdjYjgzLWRjNGYtNDcyNS1hYjhkLTIwYWE5NjhhMjcyOSJ9.t01F47t7FziCu8GhBzwd5IPgrmK1dcMr5CK-2GdR2TnlBN3vq1ei_8d2SQRvlYyLqt6yGS-0lRJCgkv4gyOYAg';
+let dbInstance: any = null;
 
-const isVercel = Boolean(process.env.VERCEL || process.env.USE_TURSO || process.env.NODE_ENV === 'production');
-
-let tursoClient: Client | null = null;
-let nativeDb: any = null;
-
-function getTursoClient(): Client {
-  if (!tursoClient) {
-    tursoClient = createClient({
-      url: TURSO_URL,
-      authToken: TURSO_TOKEN
-    });
-  }
-  return tursoClient;
-}
-
-function getNativeDb(): any {
-  if (isVercel || process.env.NODE_ENV === 'production' || process.env.VERCEL) return null;
-  if (!nativeDb) {
-    try {
-      const req = eval('require');
-      const modName = 'better-' + 'sqlite3';
-      const Database = req(modName);
-      const dataDir = path.resolve(process.cwd(), 'data');
-      if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-      const dbPath = path.resolve(dataDir, 'jobsearch.db');
-      nativeDb = new Database(dbPath);
-      try { nativeDb.pragma('journal_mode = WAL'); } catch {}
-    } catch (e: any) {
-      console.warn('[DB] Native SQLite not available, falling back to Turso HTTP client:', e.message);
+function getDatabase(): any {
+  if (!dbInstance) {
+    let dataDir = path.resolve(process.cwd(), 'data');
+    const isVercel = Boolean(process.env.VERCEL || process.env.NOW_BUILDER);
+    
+    if (isVercel) {
+      dataDir = '/tmp';
+    } else {
+      try {
+        if (!fs.existsSync(dataDir)) {
+          fs.mkdirSync(dataDir, { recursive: true });
+        }
+      } catch {
+        dataDir = '/tmp';
+      }
     }
+    
+    const dbPath = path.resolve(dataDir, 'jobsearch.db');
+    dbInstance = new Database(dbPath);
+    try {
+      dbInstance.pragma('journal_mode = WAL');
+    } catch {}
   }
-  return nativeDb;
+  return dbInstance;
 }
 
-// ─── Async Database API (Primary interface for Vercel + Local) ───────────────
+// ─── Async Database API (Compatibility layer for async routes) ───────────────
 export const dbAsync = {
   get: async (sql: string, args: any[] = []): Promise<any> => {
-    if (isVercel || !getNativeDb()) {
-      const client = getTursoClient();
-      const res = await client.execute({ sql, args });
-      return res.rows[0] ?? null;
-    } else {
-      const db = getNativeDb();
-      return db.prepare(sql).get(...args) ?? null;
-    }
+    const db = getDatabase();
+    return db.prepare(sql).get(...args) ?? null;
   },
 
   all: async (sql: string, args: any[] = []): Promise<any[]> => {
-    if (isVercel || !getNativeDb()) {
-      const client = getTursoClient();
-      const res = await client.execute({ sql, args });
-      return res.rows as any[];
-    } else {
-      const db = getNativeDb();
-      return db.prepare(sql).all(...args) as any[];
-    }
+    const db = getDatabase();
+    return db.prepare(sql).all(...args) as any[];
   },
 
   run: async (sql: string, args: any[] = []): Promise<void> => {
-    if (isVercel || !getNativeDb()) {
-      const client = getTursoClient();
-      await client.execute({ sql, args });
-    } else {
-      const db = getNativeDb();
-      db.prepare(sql).run(...args);
-    }
+    const db = getDatabase();
+    db.prepare(sql).run(...args);
   },
 
   batch: async (stmts: Array<string | { sql: string; args?: any[] }>): Promise<void> => {
-    if (isVercel || !getNativeDb()) {
-      const client = getTursoClient();
-      const formatted = stmts.map(s => typeof s === 'string' ? { sql: s, args: [] } : { sql: s.sql, args: s.args || [] });
-      await client.batch(formatted as any, 'write');
-    } else {
-      const db = getNativeDb();
-      for (const s of stmts) {
+    const db = getDatabase();
+    const transaction = db.transaction((statements: typeof stmts) => {
+      for (const s of statements) {
         if (typeof s === 'string') {
           db.prepare(s).run();
         } else {
           db.prepare(s.sql).run(...(s.args || []));
         }
       }
-    }
+    });
+    transaction(stmts);
   }
 };
 
-// ─── Synchronous Database API (For legacy service calls) ──────────────────────
+// ─── Synchronous Database API ──────────────────────────────────────────────────
 export const db = {
   prepare: (sql: string) => {
-    const native = !isVercel ? getNativeDb() : null;
-    if (native) {
-      return native.prepare(sql);
-    }
-    // Vercel Fallback: proxy sync calls to async Turso via background execution
-    return {
-      get: (...args: any[]): any => {
-        getTursoClient().execute({ sql, args }).catch(() => {});
-        return null;
-      },
-      all: (...args: any[]): any[] => {
-        getTursoClient().execute({ sql, args }).catch(() => {});
-        return [];
-      },
-      run: (...args: any[]): any => {
-        getTursoClient().execute({ sql, args }).catch(() => {});
-        return { changes: 1, lastInsertRowid: 1 };
-      }
-    };
+    const database = getDatabase();
+    return database.prepare(sql);
   },
 
   exec: (sql: string): void => {
-    const native = !isVercel ? getNativeDb() : null;
-    if (native) {
-      native.exec(sql);
-    } else {
-      getTursoClient().execute(sql).catch(() => {});
-    }
+    const database = getDatabase();
+    database.exec(sql);
   }
 };
 
 // ─── Table Creation & Seeding ─────────────────────────────────────────────────
 export async function initDatabase(): Promise<void> {
-  console.log(`[DB] Initializing database engine (${isVercel ? 'Vercel / Turso Cloud' : 'Local SQLite'})...`);
+  console.log('[DB] Initializing Local SQLite Database (data/jobsearch.db)...');
 
   const tables = [
     `CREATE TABLE IF NOT EXISTS resume_versions (
@@ -343,7 +287,7 @@ CORE TECHNICAL SKILLS
     console.warn('[DB] Sources seed notice:', e.message);
   }
 
-  console.log('[DB] Database ready');
+  console.log('[DB] Local Database ready.');
 }
 
 export async function initDatabaseAsync(): Promise<void> {

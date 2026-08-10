@@ -21,7 +21,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 const healthHandler = (req: Request, res: Response) => {
   res.json({
     status: 'ok',
-    isVercel: Boolean(process.env.VERCEL || process.env.USE_TURSO || process.env.NODE_ENV === 'production'),
+    dbMode: 'local_sqlite',
     timestamp: new Date().toISOString()
   });
 };
