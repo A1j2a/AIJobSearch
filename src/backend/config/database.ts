@@ -37,8 +37,9 @@ function getNativeDb(): any {
   if (isVercel || process.env.NODE_ENV === 'production' || process.env.VERCEL) return null;
   if (!nativeDb) {
     try {
-      const dynamicRequire = eval('require');
-      const Database = dynamicRequire('better-sqlite3');
+      const req = eval('require');
+      const modName = 'better-' + 'sqlite3';
+      const Database = req(modName);
       const dataDir = path.resolve(process.cwd(), 'data');
       if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
       const dbPath = path.resolve(dataDir, 'jobsearch.db');
