@@ -228,26 +228,31 @@ export async function initDatabase(): Promise<void> {
   }
 
   // Seed Profile
-  const profileRow = await dbAsync.get('SELECT COUNT(*) as count FROM profile');
-  if (!profileRow || profileRow.count === 0) {
-    await dbAsync.run(
-      `INSERT INTO profile (name, primary_role, experience_years, experience_text, primary_location, preferred_locations, preferred_roles, core_skills)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        'Candidate Profile', 'Software Developer', 3.0,
-        '3+ years professional experience',
-        'Remote, India',
-        JSON.stringify(['Remote', 'India', 'Worldwide']),
-        JSON.stringify(['Software Engineer', 'Full Stack Developer', 'Frontend Developer', 'Backend Engineer']),
-        JSON.stringify(['React', 'Node.js', 'TypeScript', 'JavaScript', 'REST API', 'SQL'])
-      ]
-    );
+  try {
+    const profileRow = await dbAsync.get('SELECT COUNT(*) as count FROM profile');
+    if (!profileRow || profileRow.count === 0) {
+      await dbAsync.run(
+        `INSERT INTO profile (name, primary_role, experience_years, experience_text, primary_location, preferred_locations, preferred_roles, core_skills)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          'Candidate Profile', 'Software Developer', 3.0,
+          '3+ years professional experience',
+          'Remote, India',
+          JSON.stringify(['Remote', 'India', 'Worldwide']),
+          JSON.stringify(['Software Engineer', 'Full Stack Developer', 'Frontend Developer', 'Backend Engineer']),
+          JSON.stringify(['React', 'Node.js', 'TypeScript', 'JavaScript', 'REST API', 'SQL'])
+        ]
+      );
+    }
+  } catch (e: any) {
+    console.warn('[DB] Profile seed notice:', e.message);
   }
 
   // Seed Resume Version
-  const resumeCount = await dbAsync.get('SELECT COUNT(*) as count FROM resume_versions');
-  if (!resumeCount || resumeCount.count === 0) {
-    const candidateText = `Candidate Profile
+  try {
+    const resumeCount = await dbAsync.get('SELECT COUNT(*) as count FROM resume_versions');
+    if (!resumeCount || resumeCount.count === 0) {
+      const candidateText = `Candidate Profile
 Software Developer
 Remote, India
 
@@ -259,68 +264,83 @@ CORE TECHNICAL SKILLS
 • Backend & Cloud: Express, REST APIs, SQL, PostgreSQL, MongoDB, Cloud Services
 • Tools & Methodologies: Git, GitHub, Docker, CI/CD, Agile`;
 
-    await dbAsync.run(
-      `INSERT INTO resume_versions (name, version, resume_text, file_path, is_active) VALUES (?, ?, ?, ?, 1)`,
-      ['Master Resume', 'v1.0', candidateText, null]
-    );
+      await dbAsync.run(
+        `INSERT INTO resume_versions (name, version, resume_text, file_path, is_active) VALUES (?, ?, ?, ?, 1)`,
+        ['Master Resume', 'v1.0', candidateText, null]
+      );
 
-    const rRow = await dbAsync.get('SELECT id FROM resume_versions ORDER BY id DESC LIMIT 1');
-    if (rRow) {
-      await dbAsync.run(`UPDATE profile SET active_resume_id = ? WHERE id = 1`, [rRow.id]);
+      const rRow = await dbAsync.get('SELECT id FROM resume_versions ORDER BY id DESC LIMIT 1');
+      if (rRow) {
+        await dbAsync.run(`UPDATE profile SET active_resume_id = ? WHERE id = 1`, [rRow.id]);
+      }
     }
+  } catch (e: any) {
+    console.warn('[DB] Resume seed notice:', e.message);
   }
 
   // Seed Search Config
-  const configRow = await dbAsync.get('SELECT COUNT(*) as count FROM search_configs');
-  if (!configRow || configRow.count === 0) {
-    await dbAsync.run(
-      `INSERT INTO search_configs (keywords, location, min_experience, max_experience, remote_allowed, job_type, posted_within, min_match_score)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        JSON.stringify(['React Native Developer', 'Senior React Native Developer', 'Mobile Engineer']),
-        'Ahmedabad', 2, 6, 1, 'Full Time', '30 days', 80
-      ]
-    );
+  try {
+    const configRow = await dbAsync.get('SELECT COUNT(*) as count FROM search_configs');
+    if (!configRow || configRow.count === 0) {
+      await dbAsync.run(
+        `INSERT INTO search_configs (keywords, location, min_experience, max_experience, remote_allowed, job_type, posted_within, min_match_score)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          JSON.stringify(['React Native Developer', 'Senior React Native Developer', 'Mobile Engineer']),
+          'Ahmedabad', 2, 6, 1, 'Full Time', '30 days', 80
+        ]
+      );
+    }
+  } catch (e: any) {
+    console.warn('[DB] Config seed notice:', e.message);
   }
 
   // Seed Settings
-  const HARDCODED_CLUSTER_KEY = 'cp_b585d212b386450a88f866049aa19fc0af387b46279719b75c588543e275dede';
-  const settingsToSeed: Record<string, string> = {
-    cluster_api_url: process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1',
-    cluster_api_key: (process.env.CLUSTER_API_KEY || '').trim() || HARDCODED_CLUSTER_KEY,
-    cluster_model: 'best-model',
-    cluster_temperature: '0.2',
-    cluster_max_tokens: '2048',
-    scheduler_enabled: '1',
-    scheduler_interval: '180',
-  };
-  for (const [key, value] of Object.entries(settingsToSeed)) {
-    await dbAsync.run(
-      `INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      [key, value]
-    );
+  try {
+    const HARDCODED_CLUSTER_KEY = 'cp_b585d212b386450a88f866049aa19fc0af387b46279719b75c588543e275dede';
+    const settingsToSeed: Record<string, string> = {
+      cluster_api_url: process.env.CLUSTER_API_URL || 'https://api.clusterprotocol.ai/v1',
+      cluster_api_key: (process.env.CLUSTER_API_KEY || '').trim() || HARDCODED_CLUSTER_KEY,
+      cluster_model: 'best-model',
+      cluster_temperature: '0.2',
+      cluster_max_tokens: '2048',
+      scheduler_enabled: '1',
+      scheduler_interval: '180',
+    };
+    for (const [key, value] of Object.entries(settingsToSeed)) {
+      await dbAsync.run(
+        `INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+        [key, value]
+      );
+    }
+  } catch (e: any) {
+    console.warn('[DB] Settings seed notice:', e.message);
   }
 
   // Seed Job Sources
-  const sources = [
-    ['linkedin', 'LinkedIn Jobs (Guest Search)', 1, 'ACTIVE'],
-    ['naukri', 'Naukri & Indeed Public Feeds', 1, 'ACTIVE'],
-    ['india_local_jobs', 'Global & Regional Public Feeds', 1, 'ACTIVE'],
-    ['greenhouse', 'Greenhouse Career Boards', 1, 'ACTIVE'],
-    ['arbeitnow', 'Arbeitnow Tech Jobs', 1, 'ACTIVE'],
-    ['hackernews', 'HackerNews Jobs', 1, 'ACTIVE'],
-    ['global_jobs', 'Global Jobs Aggregator', 1, 'ACTIVE'],
-    ['remotive', 'Remotive Public API', 1, 'ACTIVE'],
-    ['jobicy', 'Jobicy Engineering API', 1, 'ACTIVE'],
-    ['weworkremotely', 'We Work Remotely RSS', 1, 'ACTIVE'],
-    ['remoteok', 'RemoteOK Engineering API', 1, 'ACTIVE'],
-  ];
-  for (const [name, display_name, is_enabled, status] of sources) {
-    await dbAsync.run(
-      `INSERT INTO job_sources (name, display_name, is_enabled, is_restricted, status_message)
-       VALUES (?, ?, ?, 0, ?) ON CONFLICT(name) DO UPDATE SET display_name = excluded.display_name`,
-      [name, display_name, is_enabled, status]
-    );
+  try {
+    const sources = [
+      ['linkedin', 'LinkedIn Jobs (Guest Search)', 1, 'ACTIVE'],
+      ['naukri', 'Naukri & Indeed Public Feeds', 1, 'ACTIVE'],
+      ['india_local_jobs', 'Global & Regional Public Feeds', 1, 'ACTIVE'],
+      ['greenhouse', 'Greenhouse Career Boards', 1, 'ACTIVE'],
+      ['arbeitnow', 'Arbeitnow Tech Jobs', 1, 'ACTIVE'],
+      ['hackernews', 'HackerNews Jobs', 1, 'ACTIVE'],
+      ['global_jobs', 'Global Jobs Aggregator', 1, 'ACTIVE'],
+      ['remotive', 'Remotive Public API', 1, 'ACTIVE'],
+      ['jobicy', 'Jobicy Engineering API', 1, 'ACTIVE'],
+      ['weworkremotely', 'We Work Remotely RSS', 1, 'ACTIVE'],
+      ['remoteok', 'RemoteOK Engineering API', 1, 'ACTIVE'],
+    ];
+    for (const [name, display_name, is_enabled, status] of sources) {
+      await dbAsync.run(
+        `INSERT INTO job_sources (name, display_name, is_enabled, is_restricted, status_message)
+         VALUES (?, ?, ?, 0, ?) ON CONFLICT(name) DO UPDATE SET display_name = excluded.display_name`,
+        [name, display_name, is_enabled, status]
+      );
+    }
+  } catch (e: any) {
+    console.warn('[DB] Sources seed notice:', e.message);
   }
 
   console.log('[DB] Database ready');
