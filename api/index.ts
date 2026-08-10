@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { initDatabase } from '../src/backend/config/database';
@@ -9,8 +8,15 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// Lazy DB initialization in background on boot
-initDatabase().catch(err => console.error('[API Cold Start DB Error]', err));
+// Lazy DB initialization safely triggered on first request
+let dbInitialized = false;
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (!dbInitialized) {
+    dbInitialized = true;
+    initDatabase().catch(err => console.error('[API Lazy DB Error]', err));
+  }
+  next();
+});
 
 const healthHandler = (req: Request, res: Response) => {
   res.json({
@@ -38,6 +44,4 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ error: err.message || 'Internal Server Error', details: String(err) });
 });
 
-module.exports = app;
-module.exports.default = app;
 export default app;
