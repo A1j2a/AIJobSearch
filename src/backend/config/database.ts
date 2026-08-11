@@ -229,22 +229,11 @@ function queryRun(sql: string, args: any[] = []): void {
     if (store.profile.length === 0) store.profile = [{}];
     const p = store.profile[0];
 
-    if (lower.includes('active_resume_id')) {
-      const match = lower.match(/active_resume_id\s*=\s*(\d+|\?)/);
-      if (match) {
-        if (match[1] === '?') {
-          if (args.length === 1) {
-            p.active_resume_id = Number(args[0]);
-          } else if (args.length >= 9 && args[8] !== undefined) {
-            p.active_resume_id = Number(args[8]);
-          }
-        } else {
-          p.active_resume_id = Number(match[1]);
-        }
-      }
-    }
-
-    if (args.length > 1) {
+    if (lower.startsWith('update profile set core_skills =')) {
+      p.core_skills = typeof args[0] === 'string' ? args[0] : JSON.stringify(args[0]);
+    } else if (lower.startsWith('update profile set active_resume_id =')) {
+      p.active_resume_id = Number(args[0]);
+    } else if (args.length >= 8) {
       if (args[0] !== undefined) p.name = args[0];
       if (args[1] !== undefined) p.primary_role = args[1];
       if (args[2] !== undefined) p.experience_years = Number(args[2]);
@@ -253,6 +242,7 @@ function queryRun(sql: string, args: any[] = []): void {
       if (args[5] !== undefined) p.preferred_locations = typeof args[5] === 'string' ? args[5] : JSON.stringify(args[5]);
       if (args[6] !== undefined) p.preferred_roles = typeof args[6] === 'string' ? args[6] : JSON.stringify(args[6]);
       if (args[7] !== undefined) p.core_skills = typeof args[7] === 'string' ? args[7] : JSON.stringify(args[7]);
+      if (args[8] !== undefined) p.active_resume_id = Number(args[8]);
     }
     p.updated_at = new Date().toISOString();
     saveStore();
@@ -387,6 +377,21 @@ function queryRun(sql: string, args: any[] = []): void {
       message: args[3] || '',
       created_at: new Date().toISOString()
     });
+    saveStore();
+    return;
+  }
+  // DELETE FROM job_analysis
+  if (lower.includes('delete from job_analysis')) {
+    const appliedJobIds = new Set((store.applications || []).map(a => Number(a.job_id)));
+    store.job_analysis = (store.job_analysis || []).filter(ja => appliedJobIds.has(Number(ja.job_id)));
+    saveStore();
+    return;
+  }
+
+  // DELETE FROM jobs
+  if (lower.includes('delete from jobs')) {
+    const appliedJobIds = new Set((store.applications || []).map(a => Number(a.job_id)));
+    store.jobs = (store.jobs || []).filter(j => appliedJobIds.has(Number(j.id)));
     saveStore();
     return;
   }
@@ -610,6 +615,11 @@ CORE TECHNICAL SKILLS
   } catch (e: any) {
     console.warn('[DB] Sources seed notice:', e.message);
   }
+
+  try {
+    const { scannerService } = await import('../services/scanner.service');
+    await scannerService.resetToIdle();
+  } catch (e) {}
 
   console.log('[DB] Pure JavaScript JSON Database ready.');
 }

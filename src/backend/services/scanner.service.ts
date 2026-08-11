@@ -72,6 +72,21 @@ class ScannerService {
     new RemoteOKPublicSource()
   ];
 
+  public async resetToIdle(): Promise<void> {
+    this.isAbortRequested = false;
+    this.activeStatus = {
+      status: 'IDLE',
+      currentStep: 'Ready to start scanning real public jobs',
+      jobsFound: 0,
+      duplicatesRemoved: 0,
+      jobsAnalyzed: 0,
+      strongMatches: 0,
+      totalDbJobs: 0,
+      totalDbAnalyzed: 0
+    };
+    await this.saveStatusToDb();
+  }
+
   private async saveStatusToDb(): Promise<void> {
     try {
       await dbAsync.run(
@@ -95,9 +110,18 @@ class ScannerService {
       const totAna = await dbAsync.get('SELECT COUNT(*) as c FROM job_analysis') as any;
       const totStrong = await dbAsync.get('SELECT COUNT(*) as c FROM job_analysis WHERE match_score >= 80') as any;
 
-      const baseStatus = (this.activeStatus.status === 'RUNNING' || !savedStatus)
+      let baseStatus = (this.activeStatus.status === 'RUNNING' || !savedStatus)
         ? this.activeStatus
         : savedStatus;
+
+      // Strict Guard: Never report RUNNING state to frontend unless actively scanning in memory
+      if (this.activeStatus.status !== 'RUNNING' && baseStatus.status === 'RUNNING') {
+        baseStatus = {
+          ...baseStatus,
+          status: 'IDLE',
+          currentStep: 'Ready to start scanning real public jobs'
+        };
+      }
 
       return {
         ...baseStatus,
@@ -176,7 +200,13 @@ class ScannerService {
             postedDate: raw.posted_date
           };
 
-          const analysis = await aiProvider.analyzeJob(rawJob, profile, searchConfig, resumeText);
+          let analysis;
+          try {
+            analysis = await aiProvider.analyzeJob(rawJob, profile, searchConfig, resumeText);
+          } catch (aiErr: any) {
+            console.warn(`[AI_SAFE_FALLBACK] Error in re-analyzing ${rawJob.title}: ${aiErr.message}`);
+            analysis = aiProvider.fallbackDeterministicAnalysis(rawJob, profile, searchConfig);
+          }
 
           await dbAsync.run(`
             INSERT OR REPLACE INTO job_analysis (
@@ -286,6 +316,19 @@ class ScannerService {
       `);
 
       const resumeText = rRow ? rRow.resume_text : '';
+
+      console.log(`\n==================================================`);
+      console.log(` 🔍 SCANNER SEARCH INPUT PARAMETERS LOADED`);
+      console.log(`==================================================`);
+      console.log(` 👤 Candidate Name   : ${profile.name}`);
+      console.log(` 💼 Primary Role      : ${profile.primary_role || 'Software Developer'}`);
+      console.log(` 🛠️ Core Skills       : ${JSON.stringify(profile.core_skills)}`);
+      console.log(` 🎯 Target Keywords   : ${JSON.stringify(searchConfig.keywords)}`);
+      console.log(` 📍 Target Location   : ${searchConfig.location || profile.primary_location}`);
+      console.log(` 🌐 Remote Allowed    : ${searchConfig.remote_allowed ? 'Yes' : 'No'}`);
+      console.log(` 📄 Active Resume     : ${rRow ? `${rRow.name} (${rRow.version})` : 'None'}`);
+      console.log(`==================================================\n`);
+
       let totalRawJobs: any[] = [];
 
       // Query database for enabled job sources configured in Settings
@@ -305,8 +348,13 @@ class ScannerService {
 
       console.log(`[SCANNER] Searching ${activeSourcesToSearch.length} enabled job sources in parallel: ${activeSourcesToSearch.map(s => s.name).join(', ')}`);
 
-      const distinctKeywords = Array.from(new Set(searchConfig.keywords || [])).slice(0, 3);
-      this.activeStatus.currentStep = `Querying ${activeSourcesToSearch.length} live job boards concurrently...`;
+      // Use clean primary keyword query (e.g. "REACT NATIVE DEVELOPER")
+      const primaryQuery = (searchConfig.keywords && searchConfig.keywords.length > 0)
+        ? searchConfig.keywords[0]
+        : (profile.primary_role || 'React Native Developer');
+      
+      const distinctKeywords = [primaryQuery];
+      this.activeStatus.currentStep = `Querying ${activeSourcesToSearch.length} live job boards concurrently for "${primaryQuery}"...`;
 
       const sourcePromises = activeSourcesToSearch.map(async (source) => {
         if (this.isAbortRequested) return [];
@@ -333,7 +381,9 @@ class ScannerService {
       }
 
       this.activeStatus.jobsFound = totalRawJobs.length;
-      this.activeStatus.currentStep = `Found ${totalRawJobs.length} raw job listings. Normalizing & deduplicating...`;
+      const fetchStepMsg = `Raw fetch complete. Collected ${totalRawJobs.length} live job listings across enabled sources. Evaluating AI compatibility...`;
+      this.activeStatus.currentStep = fetchStepMsg;
+      console.log(`[SCANNER] ${fetchStepMsg}`);
 
       let addedCount = 0;
       let duplicateCount = 0;
@@ -359,21 +409,18 @@ class ScannerService {
         const descLower = (raw.description || '').toLowerCase();
         const locLower = (raw.location || '').toLowerCase();
 
-        // 1. Role & Keyword Compatibility Check
-        const allTargetTokens = Array.from(new Set([
-          ...searchKeywords,
-          ...prefRoles,
-          ...(primaryRoleLower ? [primaryRoleLower] : []),
-          'react', 'mobile', 'ios', 'android', 'fullstack', 'frontend', 'software', 'developer', 'engineer'
-        ])).filter((k: string) => k.trim().length > 0);
+        // 1. Role & Keyword Compatibility Check (Token-based matching)
+        const roleTokens = Array.from(new Set([
+          ...searchKeywords.flatMap((k: string) => k.toLowerCase().split(/\s+/)),
+          ...prefRoles.flatMap((r: string) => r.toLowerCase().split(/\s+/)),
+          ...(primaryRoleLower ? primaryRoleLower.split(/\s+/) : []),
+          ...candidateSkills.map((s: string) => s.toLowerCase())
+        ])).filter((k: string) => k.trim().length > 2 && !['and', 'for', 'with', 'the'].includes(k.trim()));
 
-        const matchesKeyword = allTargetTokens.some((kw: string) => titleLower.includes(kw) || descLower.includes(kw));
+        // Match if job title or description contains any of the candidate's core role/skill tokens
+        const matchesKeyword = roleTokens.length === 0 || roleTokens.some((token: string) => titleLower.includes(token) || descLower.includes(token));
 
-        // 2. Skills Match Check (Matches candidate skills)
-        const matchingSkillCount = candidateSkills.filter((s: string) => titleLower.includes(s) || descLower.includes(s)).length;
-        const matchesSkills = matchingSkillCount >= 1;
-
-        // 3. Location & Region Compatibility Check
+        // 2. Location Compatibility Check
         const targetLocLower = (searchConfig.location || profile.primary_location || 'worldwide').toLowerCase().trim();
         const isWorldwideScope = targetLocLower === 'worldwide' || targetLocLower === 'all' || targetLocLower === 'global' || targetLocLower === '';
 
@@ -388,12 +435,11 @@ class ScannerService {
             prefLocs.some((loc: string) => locLower.includes(loc));
         }
 
-        // Pre-Filter Guard: Must match candidate keywords/skills AND location criteria
-        const passesPreFilter = (matchesKeyword || matchesSkills) && matchesLocation;
+        const passesPreFilter = matchesKeyword && matchesLocation;
 
         if (!passesPreFilter) {
           filteredOutCount++;
-          continue; // Skip non-matching location or non-role job
+          continue;
         }
 
         this.activeStatus.currentStep = `Processing job ${i + 1}/${totalRawJobs.length}: ${raw.title} at ${raw.company}`;
@@ -411,6 +457,7 @@ class ScannerService {
 
         if (existingJob) {
           jobId = Number(existingJob.id);
+          duplicateCount++;
         } else {
           await dbAsync.run(`
             INSERT OR IGNORE INTO jobs (
@@ -447,13 +494,12 @@ class ScannerService {
           `, [raw.externalId || '', raw.jobUrl || '', raw.title || '', raw.company || '']) as any;
 
           if (reFetch) {
-            addedCount++;
             jobId = Number(reFetch.id);
           } else {
-            duplicateCount++;
             continue;
           }
         }
+        addedCount++;
 
         if (!jobId || isNaN(jobId) || jobId <= 0) {
           console.warn(`[SCANNER] Invalid jobId (${jobId}) for ${raw.title}. Skipping analysis.`);
@@ -468,7 +514,13 @@ class ScannerService {
         }
 
         this.activeStatus.currentStep = `Evaluating AI match score for ${raw.title}...`;
-        const analysis = await aiProvider.analyzeJob(raw, profile, searchConfig, resumeText);
+        let analysis;
+        try {
+          analysis = await aiProvider.analyzeJob(raw, profile, searchConfig, resumeText);
+        } catch (aiErr: any) {
+          console.warn(`[AI_SAFE_FALLBACK] Error analyzing ${raw.title}: ${aiErr.message}`);
+          analysis = aiProvider.fallbackDeterministicAnalysis(raw, profile, searchConfig);
+        }
 
         try {
           await dbAsync.run(`
@@ -508,11 +560,10 @@ class ScannerService {
       }
 
       this.activeStatus.status = 'COMPLETED';
-      if (addedCount === 0) {
-        this.activeStatus.currentStep = `Scan cycle completed. ${filteredOutCount} non-matching jobs pre-filtered out (0 AI tokens wasted). All ${duplicateCount} jobs saved in DB.`;
-      } else {
-        this.activeStatus.currentStep = `Scan complete. Collected ${addedCount} matching real jobs (${filteredOutCount} non-matching jobs pre-filtered out, ${duplicateCount} duplicates skipped).`;
-      }
+      const completionMsg = `Real job scan completed successfully! Collected & evaluated ${this.activeStatus.jobsAnalyzed} matching jobs for "${profile.primary_role || 'Candidate'}" (${filteredOutCount} pre-filtered out, ${addedCount} new jobs added).`;
+      console.log(`[SCANNER] ✅ ${completionMsg}`);
+
+      this.activeStatus.currentStep = `Scan complete. Collected & scored ${addedCount} matching real jobs for "${profile.primary_role || 'Candidate'}" (${filteredOutCount} non-matching jobs pre-filtered out).`;
 
       await dbAsync.run(`
         INSERT INTO logs (component, event, status, message)

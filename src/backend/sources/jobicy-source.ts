@@ -25,7 +25,18 @@ export class JobicyPublicSource implements JobSource {
 
     try {
       console.log(`[JOB_SOURCE] Jobicy querying engineering remote jobs...`);
-      const response = await fetch('https://jobicy.com/api/v2/remote-jobs?count=50&industry=engineering');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
+
+      const response = await fetch('https://jobicy.com/api/v2/remote-jobs?count=50&industry=engineering', {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json'
+        },
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
       if (!response.ok) return [];
 
       const data = await response.json();

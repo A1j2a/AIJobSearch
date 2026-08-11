@@ -30,8 +30,19 @@ export async function getJobs(req: Request, res: Response) {
 
     query += ` ORDER BY j.collected_at DESC`;
 
+function parseArraySafe(val: any): any[] {
+  if (Array.isArray(val)) return val;
+  if (typeof val !== 'string' || !val) return [];
+  try {
+    const res = JSON.parse(val);
+    return Array.isArray(res) ? res : [];
+  } catch {
+    return [];
+  }
+}
+
     const rows = await dbAsync.all(query, params) as any[];
-    const jobs = rows.map(r => ({ ...r, remote: Boolean(r.remote), is_demo: Boolean(r.is_demo), matching_skills: r.matching_skills ? JSON.parse(r.matching_skills) : [], missing_skills: r.missing_skills ? JSON.parse(r.missing_skills) : [] }));
+    const jobs = rows.map(r => ({ ...r, remote: Boolean(r.remote), is_demo: Boolean(r.is_demo), matching_skills: parseArraySafe(r.matching_skills), missing_skills: parseArraySafe(r.missing_skills) }));
     return res.json({ jobs, count: jobs.length });
   } catch (error: any) {
     console.error('Error fetching jobs:', error);

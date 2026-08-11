@@ -19,6 +19,32 @@ function resolvePdfPath(targetPath: string): string | null {
   return null;
 }
 
+export function isRealTechnicalSkill(skill: string): boolean {
+  if (!skill || skill.length < 2 || skill.length > 30) return false;
+  const s = skill.trim();
+
+  if (/https?:\/\/|www\.|\.com|\.net|\.org|\.app|linkedin|github/i.test(s)) return false;
+  if (/\b(202[0-9]|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|present|employed|conduct|testing)\b/i.test(s)) return false;
+  if (/\b(ahmedabad|gujar|india|mumbai|delhi|bangalore|pune|hyderabad|noida|remote)\b/i.test(s)) return false;
+
+  const invalidWords = ['ajay', 'patidar', 'resume', 'contact', 'email', 'phone', 'experience', 'projects', 'summary', 'education', 'keybenefits', 'popins', 'checkout', 'youmayalsolike', 'kwickpass', 'debugging'];
+  if (invalidWords.some(w => s.toLowerCase().includes(w))) return false;
+
+  // Single word filters
+  if (/^[a-zA-Z0-9]+$/.test(s)) {
+    if (s.length <= 2 && !['go', 'r', 'c', 'js', 'ui', 'ux'].includes(s.toLowerCase())) return false;
+    if (['in', 'rw', 'si', 'fu', 'cy7u', '8xhz', 'a93b94226'].includes(s.toLowerCase())) return false;
+    if (s.length > 15 && !['javascript', 'typescript', 'postgresql'].includes(s.toLowerCase())) return false;
+  }
+
+  // Multi-word filters for Canva CMap noise
+  const words = s.split(/\s+/);
+  if (words.some(w => w.toLowerCase().includes('http') || w.toLowerCase().includes('www'))) return false;
+  if (words.length >= 2 && words.filter(w => w.length <= 2 && !['js', 'ui', 'ux', 'c', 'r', 'go'].includes(w.toLowerCase())).length >= 1) return false;
+
+  return true;
+}
+
 export function parseProfileFromResumeText(resumeText: string, resumeTitle?: string) {
   const text = resumeText || '';
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
@@ -112,23 +138,25 @@ export function parseProfileFromResumeText(resumeText: string, resumeTitle?: str
 
   const core_skills = knownSkills.filter(s => new RegExp('\\b' + s.replace('+', '\\+').replace('.', '\\.') + '\\b', 'i').test(text));
 
-  // Dynamic Section parser for custom skills
+// Dynamic Section parser for custom skills
   const sectionRegex = /(?:skills|technologies|tools|competencies|tech stack)[\s:-]+([^\n\r]+)/gi;
   let sectionMatch;
   while ((sectionMatch = sectionRegex.exec(text)) !== null) {
     const rawSkills = sectionMatch[1].split(/[,|•/;\-]/);
     for (const raw of rawSkills) {
       const clean = raw.trim().replace(/[^a-zA-Z0-9\s.+]/g, '');
-      if (clean.length > 1 && clean.length < 25 && !core_skills.some(cs => cs.toLowerCase() === clean.toLowerCase())) {
+      if (isRealTechnicalSkill(clean) && !core_skills.some(cs => cs.toLowerCase() === clean.toLowerCase())) {
         core_skills.push(clean);
       }
     }
   }
 
+  const filteredCoreSkills = core_skills.filter(isRealTechnicalSkill);
+
   const preferred_roles = [primary_role];
   const preferred_locations = Array.from(new Set([primary_location.split(',')[0].trim(), 'Remote - India']));
 
-  return { name, primary_role, experience_years, experience_text, primary_location, preferred_locations, preferred_roles, core_skills };
+  return { name, primary_role, experience_years, experience_text, primary_location, preferred_locations, preferred_roles, core_skills: filteredCoreSkills };
 }
 
 export function cleanPdfTextStream(text: string): string {
@@ -262,13 +290,24 @@ export async function getProfile(req: Request, res: Response) {
       }
     }
 
+function parseArraySafe(val: any): any[] {
+  if (Array.isArray(val)) return val;
+  if (typeof val !== 'string' || !val) return [];
+  try {
+    const res = JSON.parse(val);
+    return Array.isArray(res) ? res : [];
+  } catch {
+    return [];
+  }
+}
+
     const profile: UserProfile = {
       id: row.id, name: row.name, primary_role: row.primary_role,
       experience_years: row.experience_years, experience_text: row.experience_text,
       primary_location: row.primary_location,
-      preferred_locations: JSON.parse(row.preferred_locations || '[]'),
-      preferred_roles: JSON.parse(row.preferred_roles || '[]'),
-      core_skills: JSON.parse(row.core_skills || '[]'),
+      preferred_locations: parseArraySafe(row.preferred_locations),
+      preferred_roles: parseArraySafe(row.preferred_roles),
+      core_skills: parseArraySafe(row.core_skills),
       active_resume_id: row.active_resume_id, active_resume: activeResume,
       created_at: row.created_at, updated_at: row.updated_at
     };

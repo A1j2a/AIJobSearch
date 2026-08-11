@@ -26,9 +26,13 @@ export interface AIProvider {
     searchConfig: SearchConfig,
     resumeText: string
   ): Promise<AIAnalysisResult>;
+  fallbackDeterministicAnalysis(
+    job: { title: string; company: string; location: string; description: string; remote?: boolean; salaryMin?: number },
+    profile: UserProfile,
+    searchConfig: SearchConfig
+  ): AIAnalysisResult;
 }
 
-// Preset mapping for Cluster Protocol models
 export const CLUSTER_MODEL_MAP: Record<string, string> = {
   'best-model': 'qwen-2.5-coder-32b-instruct',
   'qwen': 'qwen-2.5-coder-32b-instruct',
@@ -38,6 +42,9 @@ export const CLUSTER_MODEL_MAP: Record<string, string> = {
 
 export class ClusterProtocolProvider implements AIProvider {
   public name = 'ClusterProtocolProvider';
+  private consecutiveErrors = 0;
+  private maxConsecutiveErrors = 2;
+  private lastErrorResetTime = Date.now();
 
   public async analyzeJob(
     job: { title: string; company: string; location: string; description: string; salaryMin?: number; remote?: boolean },
@@ -45,6 +52,17 @@ export class ClusterProtocolProvider implements AIProvider {
     searchConfig: SearchConfig,
     resumeText: string
   ): Promise<AIAnalysisResult> {
+    // Reset circuit breaker every 60 seconds
+    if (Date.now() - this.lastErrorResetTime > 60000) {
+      this.consecutiveErrors = 0;
+      this.lastErrorResetTime = Date.now();
+    }
+
+    // Circuit Breaker: If upstream API is down/rate-limited, fallback instantly (0ms execution time)
+    if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
+      return this.fallbackDeterministicAnalysis(job, profile, searchConfig);
+    }
+
     const urlRow = await dbAsync.get("SELECT value FROM settings WHERE key = 'cluster_api_url'") as any;
     const apiKeyRow = await dbAsync.get("SELECT value FROM settings WHERE key = 'cluster_api_key'") as any;
     const modelRow = await dbAsync.get("SELECT value FROM settings WHERE key = 'cluster_model'") as any;
@@ -54,12 +72,9 @@ export class ClusterProtocolProvider implements AIProvider {
     const clusterApiKey = (apiKeyRow?.value || '').trim() || (process.env.CLUSTER_API_KEY || '').trim() || HARDCODED_CLUSTER_KEY;
     const rawModel = modelRow?.value || 'best-model';
 
-    // Map model selection to full model identifier if preset
     const targetModel = CLUSTER_MODEL_MAP[rawModel.toLowerCase()] || rawModel;
 
-    // Check if API key is configured
     if (!clusterApiKey) {
-      console.log('[AI] No Cluster Protocol API key configured. Using deterministic rule-based analysis.');
       return this.fallbackDeterministicAnalysis(job, profile, searchConfig);
     }
 
@@ -67,28 +82,16 @@ export class ClusterProtocolProvider implements AIProvider {
 
     try {
       const responseText = await this.callClusterApi(clusterApiUrl, clusterApiKey, targetModel, prompt);
-      let parsed = this.tryParseJson(responseText);
-
-      // Retry with correction prompt if JSON validation failed
-      if (!parsed) {
-        console.warn('[AI] Invalid JSON from Cluster Protocol AI. Retrying with correction prompt...');
-        const correctionPrompt = `CRITICAL FIX: Your previous response was not valid JSON. You MUST reply ONLY with a valid JSON object matching this schema, with NO markdown formatting, NO extra text:\n{\n  "roleMatchPercentage": 90,\n  "isMobileRole": true,\n  "extractedRequiredSkills": ["React Native", "TypeScript"],\n  "extractedNiceToHaveSkills": ["Jest"],\n  "aiSummary": "Brief reasoning"\n}\n\nOriginal output to re-format:\n${responseText}`;
-
-        const correctedText = await this.callClusterApi(clusterApiUrl, clusterApiKey, targetModel, correctionPrompt);
-        parsed = this.tryParseJson(correctedText);
-      }
+      const parsed = this.tryParseJson(responseText);
 
       if (!parsed) {
-        console.warn('[AI] Cluster Protocol JSON parsing failed after retry. Falling back to deterministic scoring.');
         return this.fallbackDeterministicAnalysis(job, profile, searchConfig);
       }
 
-      // Compute hybrid deterministic score using AI semantic outputs
+      this.consecutiveErrors = 0; // Success -> reset error counter
+
       const scoreBreakdown = scoringService.calculateHybridScore(
-        {
-          ...job,
-          remote: Boolean(job.remote)
-        },
+        { ...job, remote: Boolean(job.remote) },
         profile,
         searchConfig,
         {
@@ -112,11 +115,14 @@ export class ClusterProtocolProvider implements AIProvider {
         requiredSkills: parsed.extractedRequiredSkills || [],
         niceToHaveSkills: parsed.extractedNiceToHaveSkills || [],
         recommendation: scoreBreakdown.recommendation,
-        reason: parsed.aiSummary || 'Strong technical skills and role alignment.',
+        reason: parsed.aiSummary || 'Technical skills and role alignment.',
         scoreBreakdown
       };
     } catch (error: any) {
-      console.error('[AI] Cluster Protocol API error:', error.message);
+      this.consecutiveErrors++;
+      if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
+        console.warn(`[AI] Upstream API rate-limited or erroring. Tripping circuit breaker to fast deterministic scoring (0ms).`);
+      }
       return this.fallbackDeterministicAnalysis(job, profile, searchConfig);
     }
   }
@@ -147,16 +153,9 @@ ${resumeText.slice(0, 1500)}
 Title: ${job.title}
 Company: ${job.company}
 Location: ${job.location}
-Description: ${job.description.slice(0, 2000)}
+Description: ${job.description.slice(0, 1500)}
 
 === INSTRUCTIONS ===
-1. Determine if this job genuinely matches the candidate's primary target role (${profile.primary_role}) or preferred roles.
-2. Extract required technical skills from the job description.
-3. Extract optional/nice-to-have skills.
-4. Provide a role match percentage (0 to 100).
-5. Provide a 2-sentence concise summary explaining why it matches or what is missing.
-6. NEVER invent candidate experience or skills.
-
 Return ONLY a valid JSON object matching exact structure:
 {
   "isTargetRoleMatch": true,
@@ -169,7 +168,7 @@ Return ONLY a valid JSON object matching exact structure:
 
   private async callClusterApi(baseUrl: string, apiKey: string, model: string, prompt: string): Promise<string> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
+    const timeout = setTimeout(() => controller.abort(), 3000);
 
     const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
     const endpoint = cleanBaseUrl.endsWith('/chat/completions') 
@@ -190,7 +189,7 @@ Return ONLY a valid JSON object matching exact structure:
             { role: 'user', content: prompt }
           ],
           temperature: 0.2,
-          max_tokens: 2048
+          max_tokens: 1024
         }),
         signal: controller.signal
       });
@@ -198,7 +197,7 @@ Return ONLY a valid JSON object matching exact structure:
 
       if (!response.ok) {
         const errText = await response.text().catch(() => '');
-        throw new Error(`Cluster Protocol API returned HTTP status ${response.status}: ${errText.slice(0, 150)}`);
+        throw new Error(`Cluster Protocol API returned HTTP status ${response.status}: ${errText.slice(0, 100)}`);
       }
 
       const data = await response.json();
@@ -221,7 +220,7 @@ Return ONLY a valid JSON object matching exact structure:
     }
   }
 
-  private fallbackDeterministicAnalysis(
+  public fallbackDeterministicAnalysis(
     job: { title: string; company: string; location: string; description: string; remote?: boolean; salaryMin?: number },
     profile: UserProfile,
     searchConfig: SearchConfig
@@ -247,10 +246,7 @@ Return ONLY a valid JSON object matching exact structure:
                               (profile.primary_role && titleLower.includes(profile.primary_role.toLowerCase()));
 
     const scoreBreakdown = scoringService.calculateHybridScore(
-      {
-        ...job,
-        remote: Boolean(job.remote)
-      },
+      { ...job, remote: Boolean(job.remote) },
       profile,
       searchConfig,
       {
